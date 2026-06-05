@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美团外卖自动出餐助手 - DOM 提取工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+        h1 {
+            font-size: 32px;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+        h2 {
+            font-size: 20px;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #667eea;
+        }
+        .step-box {
+            background: #f0f7ff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .step-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 12px;
+        }
+        .bookmarklet-btn {
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            border: 2px dashed #4ade80;
+        }
+        .bookmarklet-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+        .bookmarklet-btn:active {
+            cursor: grabbing;
+        }
+        .kbd {
+            display: inline-block;
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 0 4px;
+        }
+        .tip-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .feature {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .feature-title {
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+        .feature-desc {
+            font-size: 14px;
+            color: #666;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            padding: 20px;
+            font-size: 14px;
+        }
+        .footer a {
+            color: white;
+        }
+        .notice-list {
+            list-style: none;
+            padding: 0;
+        }
+        .notice-list li {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            text-align: left;
+        }
+        .notice-list li::before {
+            content: "•";
+            color: #f59e0b;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .center-box {
+            display: flex;
+            justify-content: center;
+            padding: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🛵 美团外卖自动出餐助手</h1>
+            <p class="subtitle">DOM 结构化数据提取工具 - 一键获取页面可交互元素</p>
+
+            <h2>📥 安装书签工具</h2>
+
+            <div class="step-box">
+                <div class="step-title">📌 步骤 1：显示书签栏</div>
+                <p>按快捷键显示浏览器书签栏：</p>
+                <div class="center-box">
+                    <span class="kbd">Ctrl + Shift + B</span>
+                    <span style="color:#666">或</span>
+                    <span class="kbd">⌘ + Shift + B</span>
+                </div>
+            </div>
+
+            <div class="step-box">
+                <div class="step-title">🖱️ 步骤 2：拖拽按钮到书签栏</div>
+                <p style="margin-bottom:16px;">将下面的按钮<strong>拖拽</strong>（不是点击）到浏览器书签栏：</p>
+                <div class="center-box">
+                    <!-- 内联书签 - 所有代码都在 javascript: URL 中，无需外部加载 -->
+                    <a class="bookmarklet-btn"
+                       href="javascript:(function(){var H=true,I='dext-hl';document.getElementById(I)?.remove();var idx=0,M={},ID=0;function is(e){var t=e.tagName.toLowerCase();if(['a','button','input','select','textarea'].includes(t)&&!e.disabled)return 1;var s=getComputedStyle(e);return s.cursor=='pointer'||e.onclick}function vis(e){return e.offsetWidth>0}function hl(e,i){if(!H)return;var c=document.getElementById(I);if(!c){c=document.createElement('div');c.id=I;c.style.cssText='position:fixed;pointer-events:none;top:0;left:0;width:100%;height:100%;z-index:2147483640';document.body.appendChild(c)}var r=e.getClientRects()[0];if(!r)return;var cl=['#F00','#0F0','#00F','#F80','#80F'][i%5];var d=document.createElement('div');d.style.cssText='position:fixed;border:2px solid '+cl+';background:'+cl+'1a;pointer-events:none;top:'+r.top+'px;left:'+r.left+'px;width:'+r.width+'px;height:'+r.height+'px';c.appendChild(d);var lb=document.createElement('div');lb.style.cssText='position:fixed;background:'+cl+';color:white;padding:2px 6px;border-radius:4px;font-size:12px;top:'+r.top+'px;left:'+r.left+'px';lb.textContent=i;c.appendChild(lb)}function b(n,ph){if(!n||n.id==I)return;if(n.nodeType==3){var t=n.textContent.trim();if(t.length<2)return;M[ID++]={type:'T',text:t};return}if(n.nodeType!=1)return;var tg=n.tagName.toLowerCase();if(['svg','script','style','link','meta'].includes(tg))return;var nd={tag:tg,ref:n,children:[]};if(vis(n)){nd.int=is(n);var sh=nd.int&&(!ph||['a','button','input'].includes(tg));if(sh){nd.idx=idx;hl(n,idx);idx++}}for(var c of n.childNodes)b(c,nd.idx!=null);M[ID++]=nd}b(document.body,0);window.getInt=function(){return Object.entries(M).filter(([i,n])=>n.int&&n.idx!=null).map(([i,n])=>({idx:n.idx,tag:n.tag,text:(n.ref?.innerText||'').slice(0,50),ref:n.ref})).sort((a,b)=>a.idx-b.idx)};window.findByText=function(t){for(var[i,n]of Object.entries(M))if(n.ref?.innerText?.includes(t))return n};window.findByIdx=function(i){for(var[id,n]of Object.entries(M))if(n.idx==i)return n};window.clearHl=function(){document.getElementById(I)?.remove()};var int=getInt();console.log('%c🛵 DOM提取完成','color:#667eea;font-size:16px;font-weight:bold');console.log('节点:'+Object.keys(M).length+' 可交互:'+int.length);console.table(int);window._DM=M;window._INT=int;})();"
+                       draggable="true"
+                       onclick="alert('请拖拽此按钮到书签栏！\n\n不要点击，要拖拽！\n\n操作：鼠标按住按钮 → 拖到书签栏 → 松开');return false;"
+                       title="拖拽我到书签栏！">
+                        🔍 提取页面结构
+                    </a>
+                </div>
+                <p style="color:#888;font-size:12px;margin-top:12px;text-align:center;">
+                    ↑ 按住鼠标拖拽到书签栏 ↑
+                </p>
+            </div>
+
+            <div class="step-box">
+                <div class="step-title">🚀 步骤 3：在任意网页使用</div>
+                <p>打开任意网页（如美团商家版），点击书签栏中的「提取页面结构」，然后：</p>
+                <ul class="notice-list" style="margin-top:12px;">
+                    <li>按 <span class="kbd">F12</span> 打开开发者工具</li>
+                    <li>切换到 Console 标签查看输出结果</li>
+                    <li>页面会高亮显示所有可交互元素</li>
+                </ul>
+            </div>
+
+            <div class="tip-box">
+                <strong>💡 提示：</strong>
+                <ul class="notice-list">
+                    <li>这是书签工具，不是网页链接，必须<strong>拖拽</strong>到书签栏</li>
+                    <li>拖拽后，在任意网页点击书签即可执行脚本</li>
+                    <li>部分网站可能有 CSP 安全策略，脚本无法注入</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>✨ 功能特性</h2>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <div class="feature-title">自动识别</div>
+                    <div class="feature-desc">智能识别可交互元素</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">结构化输出</div>
+                    <div class="feature-desc">清晰的 JSON 数据格式</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-title">DOM 引用</div>
+                    <div class="feature-desc">直接操作页面元素</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">一键使用</div>
+                    <div class="feature-desc">拖拽书签即可使用</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📖 控制台输出示例</h2>
+            <p>执行书签后，控制台会显示：</p>
+            <pre style="background:#1a1a2e;color:#a9b7c6;padding:16px;border-radius:8px;font-size:13px;overflow-x:auto;margin-top:16px;">
+🛵 美团外卖自动出餐助手 - DOM 提取工具
+基于 page-agent 开源项目
+
+📊 提取结果
+────────────────────────────────────
+  📄 总节点数: 503
+  🎯 可交互元素: 20
+
+🎯 可交互元素列表:
+┌─────┬──────┬────────────┬─────────┬──────┐
+│ 索引 │ 标签 │    文本    │  class  │  id  │
+├─────┼──────┼────────────┼─────────┼──────┤
+│  0  │  a   │ 新闻       │  -      │  -   │
+│  1  │  a   │ hao123     │  -      │  -   │
+│ ... │ ...  │ ...        │  ...    │ ...  │
+└─────┴──────┴────────────┴─────────┴──────┘
+
+💾 数据已保存到全局变量:
+  - window.__domResult (完整结果)
+  - window.__interactiveElements (可交互元素)
+            </pre>
+
+            <div class="tip-box" style="margin-top:20px;">
+                <strong>💡 操作示例：</strong>
+                <pre style="background:#1a1a2e;color:#a9b7c6;padding:12px;border-radius:8px;font-size:12px;margin-top:8px;">
+// 点击第 0 个元素
+__interactiveElements[0].ref.click();
+
+// 查找包含"出餐"文本的元素
+findElementByText(__domResult.map, '出餐').ref.click();
+
+// 清除页面高亮
+clearHighlights();
+                </pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 备用方案：直接复制代码</h2>
+            <p>如果书签不工作，可以直接复制代码到控制台执行：</p>
+            <div style="margin-top:16px;">
+                <button onclick="copyConsoleCode()" style="background:#667eea;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:14px;">
+                    📋 复制控制台代码
+                </button>
+            </div>
+            <p style="margin-top:16px;color:#666;font-size:13px;">
+                复制后，在目标网页的控制台粘贴执行即可
+            </p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>美团外卖自动出餐助手 · 开发中</p>
+        <p>基于 <a href="https://github.com/alibaba/page-agent" target="_blank">page-agent</a> 开源项目</p>
+    </div>
+
+    <script>
+        // 复制控制台代码
+        function copyConsoleCode() {
+            const code = `// 美团外卖自动出餐助手 - DOM 提取工具
+(function(){
+    let highlightIndex = 0;
+    const DOM_HASH_MAP = {};
+    const ID = { current: 0 };
+
+    window.domExtractor = function() {
+        highlightIndex = 0;
+        ID.current = 0;
+
+        function buildTree(node) {
+            if (!node || node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.TEXT_NODE) return null;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const text = node.textContent?.trim();
+                if (!text) return null;
+                const id = String(ID.current++);
+                DOM_HASH_MAP[id] = { type: 'TEXT_NODE', text };
+                return id;
+            }
+
+            const tagName = node.tagName.toLowerCase();
+            const denyList = ['svg', 'script', 'style', 'link', 'meta'];
+            if (denyList.includes(tagName)) return null;
+
+            const style = getComputedStyle(node);
+            const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
+
+            const interactive = ['a', 'button', 'input', 'select', 'textarea'].includes(tagName) ||
+                                style.cursor === 'pointer' ||
+                                node.hasAttribute('onclick');
+
+            const nodeData = { tagName, attributes: {}, children: [], ref: node };
+
+            if (interactive && isVisible && !node.disabled) {
+                nodeData.isInteractive = true;
+                nodeData.highlightIndex = highlightIndex++;
+            }
+
+            for (const child of node.childNodes) {
+                const cid = buildTree(child);
+                if (cid) nodeData.children.push(cid);
+            }
+
+            const id = String(ID.current++);
+            DOM_HASH_MAP[id] = nodeData;
+            return id;
+        }
+
+        buildTree(document.body);
+        return { map: DOM_HASH_MAP };
+    };
+
+    window.getInteractiveElements = function(map) {
+        return Object.entries(map)
+            .filter(([id, n]) => n.isInteractive)
+            .map(([id, n]) => ({
+                index: n.highlightIndex,
+                tagName: n.tagName,
+                text: (n.ref?.innerText?.trim() || '').slice(0, 50),
+                ref: n.ref
+            }))
+            .sort((a, b) => a.index - b.index);
+    };
+
+    const result = domExtractor();
+    const interactive = getInteractiveElements(result.map);
+
+    console.log('📊 总节点:', Object.keys(result.map).length, '可交互:', interactive.length);
+    console.table(interactive);
+
+    window.__domResult = result;
+    window.__interactiveElements = interactive;
+})();
+`;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('✅ 代码已复制！\n\n请在目标网页的控制台粘贴执行。\n\n步骤：\n1. 打开目标网页\n2. F12 打开控制台\n3. 输入 allow pasting\n4. 粘贴代码执行');
+            });
+        }
+    </script>
+</body>
+</html>
