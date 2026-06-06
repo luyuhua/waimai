@@ -286,28 +286,83 @@ function extractOrders() {
 // ==================== 自动出餐操作函数 ====================
 
 /**
- * 查找"出餐"按钮并点击
- * 注意：当前页面所有订单都是"已送达"状态，没有"出餐"按钮
- * 此函数需要在"待出餐"状态下使用
+ * 按订单号点击指定按钮
+ * @param {string} orderNo - 订单编号
+ * @param {string} buttonText - 按钮文本（如 "出餐"、"确认"）
+ * @returns {boolean} 是否点击成功
  */
-function clickCookButton(orderCard) {
-  if (!orderCard || !orderCard._element) {
-    console.error('请传入有效的订单对象');
-    return false;
+function clickOrderButton(orderNo, buttonText) {
+  let doc = document;
+  if (window.self === window.top) {
+    const iframe = document.getElementById('hashframe');
+    if (!iframe) { console.error('未找到 iframe'); return false; }
+    try { doc = iframe.contentDocument || iframe.contentWindow.document; }
+    catch (e) { console.error('无法访问 iframe'); return false; }
   }
 
-  // 待出餐状态下，出餐按钮的可能位置：
-  // 1. 在订单卡片内查找包含"出餐"文本的按钮
-  // 2. 或者查找特定 class 的按钮
-  const buttons = orderCard._element.querySelectorAll('button');
-  for (const btn of buttons) {
-    const text = btn.innerText.trim();
-    if (text.includes('出餐') || text.includes('确认出餐')) {
-      btn.click();
-      console.log(`✅ 已点击出餐按钮: 订单 ${orderCard.orderNo}`);
-      return true;
+  const cards = doc.querySelectorAll('[class*="order-card"]');
+  for (const card of cards) {
+    const text = card.innerText || '';
+    // 先匹配订单号
+    const match = text.match(/订单编号[：:]\s*(\d+)/);
+    if (match && match[1] === orderNo) {
+      const buttons = card.querySelectorAll('button');
+      for (const btn of buttons) {
+        if (btn.innerText.trim().includes(buttonText)) {
+          btn.click();
+          console.log(`✅ 已点击「${buttonText}」: 订单 ${orderNo}`);
+          return true;
+        }
+      }
+      console.warn(`⚠️ 订单 ${orderNo} 中未找到「${buttonText}」按钮`);
+      return false;
     }
   }
+  console.error(`❌ 未找到订单 ${orderNo}`);
+  return false;
+}
+
+/**
+ * 一键出餐：找到所有"待出餐"订单，逐个点击出餐按钮
+ * @param {number} intervalMs - 每次点击间隔（毫秒），默认 2000
+ * @returns {number} 成功点击出餐的订单数
+ */
+function autoCookAll(intervalMs = 2000) {
+  let doc = document;
+  if (window.self === window.top) {
+    const iframe = document.getElementById('hashframe');
+    if (!iframe) { console.error('未找到 iframe'); return 0; }
+    try { doc = iframe.contentDocument || iframe.contentWindow.document; }
+    catch (e) { console.error('无法访问 iframe'); return 0; }
+  }
+
+  const cards = doc.querySelectorAll('[class*="order-card"]');
+  let count = 0;
+
+  for (const card of cards) {
+    const text = card.innerText || '';
+    // 只处理"待出餐"状态的订单
+    if (text.includes('待出餐')) {
+      const match = text.match(/订单编号[：:]\s*(\d+)/);
+      const orderNo = match ? match[1] : '';
+      const buttons = card.querySelectorAll('button');
+      for (const btn of buttons) {
+        if (btn.innerText.trim().includes('出餐')) {
+          setTimeout(() => {
+            btn.click();
+            console.log(`✅ 自动出餐: 订单 ${orderNo}`);
+          }, count * intervalMs);
+          count++;
+          break;
+        }
+      }
+    }
+  }
+
+  if (count === 0) console.log('没有待出餐订单');
+  else console.log(`🚀 将自动出餐 ${count} 单，间隔 ${intervalMs}ms`);
+  return count;
+}
 
   // 也可能在订单卡片外有出餐操作
   console.warn(`⚠️ 未找到出餐按钮: 订单 ${orderCard.orderNo}，可能不是"待出餐"状态`);

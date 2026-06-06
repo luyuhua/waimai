@@ -677,6 +677,83 @@
         return orders;
     };
 
+    // ==================== 自动出餐操作 ====================
+
+    /**
+     * 按订单号点击指定按钮
+     * 用法: clickOrderButton('2002156823164924733', '出餐')
+     */
+    window.clickOrderButton = function(orderNo, buttonText) {
+        let doc = document;
+        if (window.self === window.top) {
+            const iframe = document.getElementById('hashframe');
+            if (!iframe) { console.error('❌ 未找到 iframe'); return false; }
+            try { doc = iframe.contentDocument || iframe.contentWindow.document; }
+            catch (e) { console.error('❌ 无法访问 iframe'); return false; }
+        }
+
+        const cards = doc.querySelectorAll('[class*="order-card"]');
+        for (const card of cards) {
+            const text = card.innerText || '';
+            const match = text.match(/订单编号[：:]\s*(\d+)/);
+            if (match && match[1] === orderNo) {
+                const buttons = card.querySelectorAll('button');
+                for (const btn of buttons) {
+                    if (btn.innerText.trim().includes(buttonText)) {
+                        btn.click();
+                        console.log(`✅ 已点击「${buttonText}」: 订单 ${orderNo}`);
+                        return true;
+                    }
+                }
+                console.warn(`⚠️ 订单 ${orderNo} 中未找到「${buttonText}」按钮`);
+                return false;
+            }
+        }
+        console.error(`❌ 未找到订单 ${orderNo}`);
+        return false;
+    };
+
+    /**
+     * 一键出餐：找到所有待出餐订单，逐个点击出餐按钮
+     * 用法: autoCookAll()
+     * 用法: autoCookAll(3000)  // 每次点击间隔3秒
+     */
+    window.autoCookAll = function(intervalMs = 2000) {
+        let doc = document;
+        if (window.self === window.top) {
+            const iframe = document.getElementById('hashframe');
+            if (!iframe) { console.error('❌ 未找到 iframe'); return 0; }
+            try { doc = iframe.contentDocument || iframe.contentWindow.document; }
+            catch (e) { console.error('❌ 无法访问 iframe'); return 0; }
+        }
+
+        const cards = doc.querySelectorAll('[class*="order-card"]');
+        let count = 0;
+
+        for (const card of cards) {
+            const text = card.innerText || '';
+            if (text.includes('待出餐')) {
+                const match = text.match(/订单编号[：:]\s*(\d+)/);
+                const orderNo = match ? match[1] : '';
+                const buttons = card.querySelectorAll('button');
+                for (const btn of buttons) {
+                    if (btn.innerText.trim().includes('出餐')) {
+                        setTimeout(() => {
+                            btn.click();
+                            console.log(`✅ 自动出餐: 订单 ${orderNo}`);
+                        }, count * intervalMs);
+                        count++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (count === 0) console.log('📭 没有待出餐订单');
+        else console.log(`🚀 将自动出餐 ${count} 单，间隔 ${intervalMs}ms`);
+        return count;
+    };
+
     // ==================== 自动执行 ====================
 
     const result = domExtractor({ viewportExpansion: -1, doHighlightElements: true });
