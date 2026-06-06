@@ -1,15 +1,14 @@
 /**
  * @file DOM 提取工具 Loader - 书签动态加载脚本
  * @description 此文件部署到 GitHub Pages，书签通过 javascript: 协议动态加载此脚本
- * @usage 将此文件部署到 https://luyuhua.github.io/waimai/docs/domExtractor.loader.js
- *       书签的 href 使用短小的 loader 代码来加载此文件
+ * @usage 书签的 href 使用短小的 loader 代码来加载此文件
  */
 
 (function() {
     'use strict';
 
     // 构建脚本 URL（带缓存破坏参数）
-    var scriptUrl = 'https://luyuhua.github.io/waimai/docs/domExtractor.bookmarklet.js?t=' + Date.now();
+    var scriptUrl = 'https://luyuhua.github.io/waimai/src/domExtractor.bookmarklet.js?t=' + Date.now();
 
     // 检查是否已加载
     if (window.__domExtractorLoaded) {
