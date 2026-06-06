@@ -288,7 +288,7 @@ function extractOrders() {
 /**
  * 按订单号点击指定按钮
  * @param {string} orderNo - 订单编号
- * @param {string} buttonText - 按钮文本（如 "出餐"、"确认"）
+ * @param {string} buttonText - 按钮文本（如 "出餐完成"、"出餐"）
  * @returns {boolean} 是否点击成功
  */
 function clickOrderButton(orderNo, buttonText) {
@@ -347,7 +347,8 @@ function autoCookAll(intervalMs = 2000) {
       const orderNo = match ? match[1] : '';
       const buttons = card.querySelectorAll('button');
       for (const btn of buttons) {
-        if (btn.innerText.trim().includes('出餐')) {
+        const btnText = btn.innerText.trim();
+	        if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
           setTimeout(() => {
             btn.click();
             console.log(`✅ 自动出餐: 订单 ${orderNo}`);

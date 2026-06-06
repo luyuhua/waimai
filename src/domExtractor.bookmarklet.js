@@ -737,7 +737,8 @@
                 const orderNo = match ? match[1] : '';
                 const buttons = card.querySelectorAll('button');
                 for (const btn of buttons) {
-                    if (btn.innerText.trim().includes('出餐')) {
+                    const btnText = btn.innerText.trim();
+                    if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
                         setTimeout(() => {
                             btn.click();
                             console.log(`✅ 自动出餐: 订单 ${orderNo}`);

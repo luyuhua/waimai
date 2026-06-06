@@ -194,7 +194,7 @@ function checkForNewOrders() {
                         if (text.includes(order.orderNo)) {
                             const btns = card.querySelectorAll('button');
                             for (const btn of btns) {
-                                if (btn.innerText.trim().includes('出餐')) {
+                                if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
                                     setTimeout(() => {
                                         btn.click();
                                         console.log(`✅ 已自动出餐: 订单 ${order.orderNo}`);
