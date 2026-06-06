@@ -173,11 +173,11 @@
                 <div class="step-title">🖱️ 步骤 2：拖拽按钮到书签栏</div>
                 <p style="margin-bottom:16px;">将下面的按钮<strong>拖拽</strong>（不是点击）到浏览器书签栏：</p>
                 <div class="center-box">
-                    <!-- 内联书签 - 所有代码都在 javascript: URL 中，无需外部加载 -->
+                    <!-- 书签按钮 - 使用 loader 模式：href 只包含短小的加载脚本，实际代码从 GitHub Pages 动态加载 -->
                     <a class="bookmarklet-btn"
-                       href="javascript:(function(){var H=true,I='dext-hl';document.getElementById(I)?.remove();var idx=0,M={},ID=0;function is(e){var t=e.tagName.toLowerCase();if(['a','button','input','select','textarea'].includes(t)&&!e.disabled)return 1;var s=getComputedStyle(e);return s.cursor=='pointer'||e.onclick}function vis(e){return e.offsetWidth>0}function hl(e,i){if(!H)return;var c=document.getElementById(I);if(!c){c=document.createElement('div');c.id=I;c.style.cssText='position:fixed;pointer-events:none;top:0;left:0;width:100%;height:100%;z-index:2147483640';document.body.appendChild(c)}var r=e.getClientRects()[0];if(!r)return;var cl=['#F00','#0F0','#00F','#F80','#80F'][i%5];var d=document.createElement('div');d.style.cssText='position:fixed;border:2px solid '+cl+';background:'+cl+'1a;pointer-events:none;top:'+r.top+'px;left:'+r.left+'px;width:'+r.width+'px;height:'+r.height+'px';c.appendChild(d);var lb=document.createElement('div');lb.style.cssText='position:fixed;background:'+cl+';color:white;padding:2px 6px;border-radius:4px;font-size:12px;top:'+r.top+'px;left:'+r.left+'px';lb.textContent=i;c.appendChild(lb)}function b(n,ph){if(!n||n.id==I)return;if(n.nodeType==3){var t=n.textContent.trim();if(t.length<2)return;M[ID++]={type:'T',text:t};return}if(n.nodeType!=1)return;var tg=n.tagName.toLowerCase();if(['svg','script','style','link','meta'].includes(tg))return;var nd={tag:tg,ref:n,children:[]};if(vis(n)){nd.int=is(n);var sh=nd.int&&(!ph||['a','button','input'].includes(tg));if(sh){nd.idx=idx;hl(n,idx);idx++}}for(var c of n.childNodes)b(c,nd.idx!=null);M[ID++]=nd}b(document.body,0);window.getInt=function(){return Object.entries(M).filter(([i,n])=>n.int&&n.idx!=null).map(([i,n])=>({idx:n.idx,tag:n.tag,text:(n.ref?.innerText||'').slice(0,50),ref:n.ref})).sort((a,b)=>a.idx-b.idx)};window.findByText=function(t){for(var[i,n]of Object.entries(M))if(n.ref?.innerText?.includes(t))return n};window.findByIdx=function(i){for(var[id,n]of Object.entries(M))if(n.idx==i)return n};window.clearHl=function(){document.getElementById(I)?.remove()};var int=getInt();console.log('%c🛵 DOM提取完成','color:#667eea;font-size:16px;font-weight:bold');console.log('节点:'+Object.keys(M).length+' 可交互:'+int.length);console.table(int);window._DM=M;window._INT=int;})();"
+                       href="javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/docs/domExtractor.loader.js?t='+Date.now();s.type='text/javascript';s.setAttribute('crossorigin','anonymous');s.onload=function(){console.log('Loading DOM extractor...')};s.onerror=function(){console.error('Failed to load DOM extractor script')};document.body.appendChild(s);})()"
                        draggable="true"
-                       onclick="alert('请拖拽此按钮到书签栏！\n\n不要点击，要拖拽！\n\n操作：鼠标按住按钮 → 拖到书签栏 → 松开');return false;"
+                       onclick="return false;"
                        title="拖拽我到书签栏！">
                         🔍 提取页面结构
                     </a>
@@ -278,7 +278,7 @@ clearHighlights();
             <h2>📋 备用方案：直接复制代码</h2>
             <p>如果书签不工作，可以直接复制代码到控制台执行：</p>
             <div style="margin-top:16px;">
-                <button onclick="copyConsoleCode()" style="background:#667eea;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:14px;">
+                <button onclick="return false;" style="background:#667eea;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:14px;">
                     📋 复制控制台代码
                 </button>
             </div>
@@ -294,85 +294,19 @@ clearHighlights();
     </div>
 
     <script>
-        // 复制控制台代码
-        function copyConsoleCode() {
-            const code = `// 美团外卖自动出餐助手 - DOM 提取工具
-(function(){
-    let highlightIndex = 0;
-    const DOM_HASH_MAP = {};
-    const ID = { current: 0 };
-
-    window.domExtractor = function() {
-        highlightIndex = 0;
-        ID.current = 0;
-
-        function buildTree(node) {
-            if (!node || node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.TEXT_NODE) return null;
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent?.trim();
-                if (!text) return null;
-                const id = String(ID.current++);
-                DOM_HASH_MAP[id] = { type: 'TEXT_NODE', text };
-                return id;
+        // 复制控制台代码 - 使用 fetch 加载完整版本
+        async function copyConsoleCode() {
+            try {
+                const response = await fetch('https://luyuhua.github.io/waimai/docs/domExtractor.bookmarklet.js');
+                const code = await response.text();
+                await navigator.clipboard.writeText(code);
+                alert('✅ 代码已复制！\n\n请在目标网页的控制台粘贴执行。\n\n步骤：\n1. 打开目标网页\n2. 按 F12 打开开发者工具\n3. 切换到 Console 标签\n4. 粘贴代码回车执行');
+            } catch (e) {
+                // 备用：使用内联精简版
+                const code = `(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/docs/domExtractor.bookmarklet.js?t='+Date.now();s.onerror=function(){console.error('Script load failed')};document.body.appendChild(s);})()`;
+                await navigator.clipboard.writeText(code);
+                alert('✅ 加载代码已复制！\n\n请在目标网页的控制台粘贴执行。');
             }
-
-            const tagName = node.tagName.toLowerCase();
-            const denyList = ['svg', 'script', 'style', 'link', 'meta'];
-            if (denyList.includes(tagName)) return null;
-
-            const style = getComputedStyle(node);
-            const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
-
-            const interactive = ['a', 'button', 'input', 'select', 'textarea'].includes(tagName) ||
-                                style.cursor === 'pointer' ||
-                                node.hasAttribute('onclick');
-
-            const nodeData = { tagName, attributes: {}, children: [], ref: node };
-
-            if (interactive && isVisible && !node.disabled) {
-                nodeData.isInteractive = true;
-                nodeData.highlightIndex = highlightIndex++;
-            }
-
-            for (const child of node.childNodes) {
-                const cid = buildTree(child);
-                if (cid) nodeData.children.push(cid);
-            }
-
-            const id = String(ID.current++);
-            DOM_HASH_MAP[id] = nodeData;
-            return id;
-        }
-
-        buildTree(document.body);
-        return { map: DOM_HASH_MAP };
-    };
-
-    window.getInteractiveElements = function(map) {
-        return Object.entries(map)
-            .filter(([id, n]) => n.isInteractive)
-            .map(([id, n]) => ({
-                index: n.highlightIndex,
-                tagName: n.tagName,
-                text: (n.ref?.innerText?.trim() || '').slice(0, 50),
-                ref: n.ref
-            }))
-            .sort((a, b) => a.index - b.index);
-    };
-
-    const result = domExtractor();
-    const interactive = getInteractiveElements(result.map);
-
-    console.log('📊 总节点:', Object.keys(result.map).length, '可交互:', interactive.length);
-    console.table(interactive);
-
-    window.__domResult = result;
-    window.__interactiveElements = interactive;
-})();
-`;
-            navigator.clipboard.writeText(code).then(() => {
-                alert('✅ 代码已复制！\n\n请在目标网页的控制台粘贴执行。\n\n步骤：\n1. 打开目标网页\n2. F12 打开控制台\n3. 输入 allow pasting\n4. 粘贴代码执行');
-            });
         }
     </script>
 </body>
