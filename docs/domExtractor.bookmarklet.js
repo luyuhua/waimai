@@ -755,9 +755,161 @@
         return count;
     };
 
+    // ==================== 订单监控 ====================
+
+    /**
+     * 启动订单监控：每 5 秒检查新订单，发现"待出餐"时自动抓取
+     * @param {number} intervalMs - 轮询间隔毫秒，默认 5000
+     * @param {boolean} autoCook - 是否自动点击出餐按钮，默认 false
+     */
+    window.monitorOrders = function(intervalMs, autoCook) {
+        intervalMs = intervalMs || 5000;
+        autoCook = autoCook || false;
+
+        // 停止之前的监控
+        if (window.__orderMonitorTimer) {
+            clearInterval(window.__orderMonitorTimer);
+        }
+        window.__knownOrders = window.__knownOrders || new Set();
+        window.__autoCookEnabled = autoCook;
+        window.__monitorCheckCount = 0;
+
+        function getIframeDoc() {
+            if (window.self !== window.top) return document;
+            var iframe = document.getElementById('hashframe');
+            if (!iframe) return null;
+            try { return iframe.contentDocument || iframe.contentWindow.document; }
+            catch (e) { return null; }
+        }
+
+        function checkOrders() {
+            window.__monitorCheckCount++;
+            var doc = getIframeDoc();
+            if (!doc) {
+                console.log('%c⏳ 等待订单页面加载...', 'color: #f59e0b;');
+                return;
+            }
+
+            var cards = doc.querySelectorAll('[class*="order-card"]');
+            if (!cards.length) return;
+
+            var now = new Date().toLocaleTimeString();
+
+            cards.forEach(function(card) {
+                var allText = card.innerText || '';
+                var orderNoMatch = allText.match(/订单编号[：:]\s*(\d+)/);
+                var orderNo = orderNoMatch ? orderNoMatch[1] : '';
+                if (!orderNo || window.__knownOrders.has(orderNo)) return;
+
+                // 新订单！
+                window.__knownOrders.add(orderNo);
+
+                var isPendingCook = allText.includes('待出餐');
+                var customerMatch = allText.match(/([^\s]{1,4}(?:先生|女士))/);
+                var indexMatch = allText.match(/#(\d+)/);
+
+                var statusEmoji = isPendingCook ? '🔴' : '🔵';
+                console.log(
+                    '%c' + statusEmoji + ' 新订单 #%s %s %s',
+                    'font-weight: bold; font-size: 14px; color: ' + (isPendingCook ? 'red' : '#667eea') + ';',
+                    indexMatch ? indexMatch[1] : '?',
+                    customerMatch ? customerMatch[1] : '',
+                    isPendingCook ? '⚠️ 待出餐！' : ''
+                );
+
+                if (isPendingCook) {
+                    console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
+
+                    // 抓取出餐按钮结构
+                    var buttons = card.querySelectorAll('button');
+                    var btnInfo = [];
+                    for (var i = 0; i < buttons.length; i++) {
+                        btnInfo.push({
+                            text: buttons[i].innerText.trim(),
+                            type: buttons[i].type || '',
+                            className: buttons[i].className || '',
+                            disabled: buttons[i].disabled,
+                            id: buttons[i].id || ''
+                        });
+                    }
+                    console.log('%c📋 出餐按钮结构：', 'color: #f59e0b; font-weight: bold;');
+                    console.log(JSON.stringify(btnInfo, null, 2));
+
+                    // 自动出餐
+                    if (window.__autoCookEnabled) {
+                        for (var j = 0; j < buttons.length; j++) {
+                            var btnText = buttons[j].innerText.trim();
+                            if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
+                                setTimeout((function(btn, no) {
+                                    return function() {
+                                        btn.click();
+                                        console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
+                                    };
+                                })(buttons[j], orderNo), 1000);
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 心跳提示
+            if (window.__monitorCheckCount % 6 === 1) {
+                var pendingCount = 0;
+                cards.forEach(function(card) {
+                    if (card.innerText.includes('待出餐')) pendingCount++;
+                });
+                var emoji = pendingCount > 0 ? '🔴' : '✅';
+                console.log('%c' + emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单', 'color: #888;');
+            }
+        }
+
+        // 初始化已知订单
+        var doc = getIframeDoc();
+        if (doc) {
+            var cards = doc.querySelectorAll('[class*="order-card"]');
+            cards.forEach(function(card) {
+                var m = card.innerText.match(/订单编号[：:]\s*(\d+)/);
+                if (m) window.__knownOrders.add(m[1]);
+            });
+        }
+
+        console.log('%c📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查 | 自动出餐: ' + (autoCook ? '✅ 开启' : '❌ 关闭'), 'color: #667eea; font-size: 14px; font-weight: bold;');
+        console.log('%c💡 设置 window.__autoCookEnabled = true 开启自动出餐', 'color: #f59e0b;');
+        console.log('%c💡 调用 window.stopOrderMonitor() 停止监控', 'color: #888;');
+
+        window.__orderMonitorTimer = setInterval(checkOrders, intervalMs);
+        checkOrders(); // 立即检查一次
+
+        return window.__knownOrders.size;
+    };
+
+    /**
+     * 停止订单监控
+     */
+    window.stopOrderMonitor = function() {
+        if (window.__orderMonitorTimer) {
+            clearInterval(window.__orderMonitorTimer);
+            window.__orderMonitorTimer = null;
+            console.log('%c⏹️ 订单监控已停止', 'color: #888; font-size: 14px;');
+        }
+    };
+
     // ==================== 自动执行 ====================
 
     const result = domExtractor({ viewportExpansion: -1, doHighlightElements: true });
     printResults(result);
+
+    // 自动检测：如果当前页面是美团商家版，启动订单监控
+    var currentHost = window.location.hostname || '';
+    var isMeituan = currentHost.indexOf('meituan') !== -1 || currentHost.indexOf('waimai') !== -1;
+    if (isMeituan) {
+        console.log('');
+        console.log('%c🛵 检测到美团商家版，自动启动订单监控', 'color: #667eea; font-size: 14px; font-weight: bold;');
+        setTimeout(function() { monitorOrders(5000, false); }, 1000);
+    } else {
+        console.log('');
+        console.log('%c💡 非美团页面，如需订单监控请手动调用 monitorOrders()', 'color: #888;');
+    }
 
 })();
