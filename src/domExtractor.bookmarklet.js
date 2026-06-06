@@ -795,58 +795,80 @@
 
             var now = new Date().toLocaleTimeString();
 
+            function getOrderStatus(allText) {
+                if (allText.includes('待接单')) return 'pending_accept';
+                if (allText.includes('待出餐')) return 'pending_cook';
+                if (allText.includes('已出餐')) return 'cooked';
+                if (allText.includes('配送中')) return 'delivering';
+                if (allText.includes('已送达') || allText.includes('用户已收餐')) return 'delivered';
+                if (allText.includes('已取消')) return 'cancelled';
+                return 'unknown';
+            }
+
+            // 重置状态追踪（首次运行时）
+            if (!window.__orderStatusMap) window.__orderStatusMap = {};
+
             cards.forEach(function(card) {
                 var allText = card.innerText || '';
                 var orderNoMatch = allText.match(/订单编号[：:]\s*(\d+)/);
                 var orderNo = orderNoMatch ? orderNoMatch[1] : '';
-                if (!orderNo || window.__knownOrders.has(orderNo)) return;
+                if (!orderNo) return;
 
-                // 新订单！
+                var currentStatus = getOrderStatus(allText);
+                var prevStatus = window.__orderStatusMap[orderNo];
+                var isNew = !window.__knownOrders.has(orderNo);
+                var statusChanged = prevStatus && prevStatus !== currentStatus;
+
                 window.__knownOrders.add(orderNo);
+                window.__orderStatusMap[orderNo] = currentStatus;
 
-                var isPendingCook = allText.includes('待出餐');
                 var customerMatch = allText.match(/([^\s]{1,4}(?:先生|女士))/);
                 var indexMatch = allText.match(/#(\d+)/);
+                var isPendingCook = currentStatus === 'pending_cook';
 
-                var statusEmoji = isPendingCook ? '🔴' : '🔵';
-                console.log(
-                    '%c' + statusEmoji + ' 新订单 #%s %s %s',
-                    'font-weight: bold; font-size: 14px; color: ' + (isPendingCook ? 'red' : '#667eea') + ';',
-                    indexMatch ? indexMatch[1] : '?',
-                    customerMatch ? customerMatch[1] : '',
-                    isPendingCook ? '⚠️ 待出餐！' : ''
-                );
+                // 新订单 或 状态变为"待出餐"
+                if (isNew || (statusChanged && isPendingCook)) {
+                    var reason = isNew ? '🆕 新订单' : '🔄 状态变化 → 待出餐';
+                    var statusEmoji = isPendingCook ? '🔴' : '🔵';
+                    console.log(
+                        '%c' + statusEmoji + ' ' + reason + ' #%s %s %s',
+                        'font-weight: bold; font-size: 14px; color: ' + (isPendingCook ? 'red' : '#667eea') + ';',
+                        indexMatch ? indexMatch[1] : '?',
+                        customerMatch ? customerMatch[1] : '',
+                        isPendingCook ? '⚠️ 待出餐！' : ''
+                    );
 
-                if (isPendingCook) {
-                    console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
+                    if (isPendingCook) {
+                        console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
 
-                    // 抓取出餐按钮结构
-                    var buttons = card.querySelectorAll('button');
-                    var btnInfo = [];
-                    for (var i = 0; i < buttons.length; i++) {
-                        btnInfo.push({
-                            text: buttons[i].innerText.trim(),
-                            type: buttons[i].type || '',
-                            className: buttons[i].className || '',
-                            disabled: buttons[i].disabled,
-                            id: buttons[i].id || ''
-                        });
-                    }
-                    console.log('%c📋 出餐按钮结构：', 'color: #f59e0b; font-weight: bold;');
-                    console.log(JSON.stringify(btnInfo, null, 2));
+                        // 抓取出餐按钮结构
+                        var buttons = card.querySelectorAll('button');
+                        var btnInfo = [];
+                        for (var i = 0; i < buttons.length; i++) {
+                            btnInfo.push({
+                                text: buttons[i].innerText.trim(),
+                                type: buttons[i].type || '',
+                                className: buttons[i].className || '',
+                                disabled: buttons[i].disabled,
+                                id: buttons[i].id || ''
+                            });
+                        }
+                        console.log('%c📋 出餐按钮结构：', 'color: #f59e0b; font-weight: bold;');
+                        console.log(JSON.stringify(btnInfo, null, 2));
 
-                    // 自动出餐
-                    if (window.__autoCookEnabled) {
-                        for (var j = 0; j < buttons.length; j++) {
-                            var btnText = buttons[j].innerText.trim();
-                            if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
-                                setTimeout((function(btn, no) {
-                                    return function() {
-                                        btn.click();
-                                        console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
-                                    };
-                                })(buttons[j], orderNo), 1000);
-                                break;
+                        // 自动出餐
+                        if (window.__autoCookEnabled) {
+                            for (var j = 0; j < buttons.length; j++) {
+                                var btnText = buttons[j].innerText.trim();
+                                if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
+                                    setTimeout((function(btn, no) {
+                                        return function() {
+                                            btn.click();
+                                            console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
+                                        };
+                                    })(buttons[j], orderNo), 1000);
+                                    break;
+                                }
                             }
                         }
                     }
