@@ -1,6 +1,7 @@
 # 美团外卖自动点出餐助手 — 技术方案与实施计划
 
 > 创建日期：2026/06/05
+> 最近更新：2026/06/06
 > 角色定位：用户是产品经理/需求方，我是开发者。Chrome DevTools MCP 是我的开发工具之一（类似 IDE/调试器），用于调研和原型验证，不是最终产品的技术方案。我会根据需要使用各种工具（网页搜索、浏览器控制、代码分析等），不限于 MCP。
 > 目标：开发一个自动化美团外卖商家版出餐操作的产品，缓解商家出餐压力
 
@@ -50,7 +51,7 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 核心技术栈
+### 1.4 核心技术栈
 
 **开发阶段（当前）**：
 
@@ -112,6 +113,51 @@
 
 ---
 
+### ✅ Step 0.5: page-agent 代码集成
+- [x] 从 page-agent 移植核心 DOM 提取代码到 `/src/domExtractor.js`
+
+---
+
+### ✅ Step 0.6: Bookmarklet 工具开发与调试
+
+**目标**：开发浏览器书签工具（Bookmarklet），让用户可以在任意网页一键提取 DOM 结构化数据
+
+**开发历程与关键决策**：
+
+#### 问题 1：拖拽到书签栏后点击会打开页面而非执行脚本
+
+**根因分析**：
+- 原始实现将全部 JS 代码（2252字符）内联到 `href="javascript:..."` 中
+- `onclick="alert(...)"` 在拖拽过程中会触发弹窗，干扰拖拽行为
+- 参考 page-agent 项目，其 bookmarklet 用的是 `onclick="return false;"`
+
+**修复**：`onclick` 从 `alert(...)` 改为 `return false;`
+
+#### 问题 2：Loader 模式被 CSP 拦截
+
+**尝试**：将书签改为 loader 模式（和 page-agent 一样），`href` 里只放一个短小的 loader 脚本动态加载外部 JS
+
+**结果**：在部分网站（如 GitHub）因 Content Security Policy (CSP) 限制而被拦截：
+```
+Refused to load the script 'https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t=...'
+because it violates the following Content Security Policy directive: "script-src github.githubassets.com"
+```
+
+**CSP 限制对比**：
+
+| 方式 | CSP 绕过 | 说明 |
+|------|----------|------|
+| `javascript:` 内联代码 | ✅ 不受 CSP 限制 | 书签的 `javascript:` URL 被浏览器当做"导航"，不触发 CSP |
+| `<script src="外部URL">` | ❌ 受 CSP 限制 | 动态创建的 `<script>` 标签受页面 CSP 约束 |
+
+**结论**：page-agent 用 loader 模式是因为其代码太长（完整框架），无法内联到 `javascript:` URL（浏览器 ~2000-4000 字符限制）。而我们的 DOM 提取工具精简版约 2500 字符，可以内联。
+
+**最终方案**：保持内联模式（`javascript:` URL 包含完整代码），同时 `onclick="return false;"` 确保拖拽正常工作。
+
+**状态**：✅ 基本功能可用（点击书签可执行），拖拽功能待用户确认
+
+---
+
 ### ⏳ Step 1: 验证 Chrome MCP 基础能力（百度结构化数据获取）
 
 **目标**：验证 MCP 工具链能否正常获取网页结构化数据（开发工具验证）
@@ -130,7 +176,7 @@
 **参考项目**：
 - [page-agent](https://github.com/alibaba/page-agent) — 阿里开源的网页结构化数据获取方案
 
-**状态**：⏳ 待执行
+**状态**：✅ 已完成（Step 0 中已验证）
 
 ---
 
@@ -293,13 +339,23 @@
 
 #### 项目代码集成
 
-**代码位置**：
-- `/src/domExtractor.js` - 核心 DOM 提取器（从 page-agent 移植）
-- `/src/example.js` - 使用示例和辅助函数
+**代码文件**：
+
+| 文件 | 用途 | 说明 |
+|------|------|------|
+| `src/domExtractor.js` | 核心版 | 完整的 DOM 提取器（从 page-agent 移植），用于控制台/插件 |
+| `src/domExtractor.bookmarklet.js` | 书签版 | 带高亮、结果打印的完整版，用于浏览器书签 |
+| `src/domExtractor.console.js` | 控制台版 | 不带高亮的精简版，用于控制台直接粘贴 |
+| `src/domExtractor.inline.js` | 内联版 | 极度精简版，用于嵌入 `javascript:` URL |
+| `src/domExtractor.loader.js` | 加载器 | 短小的 loader 脚本，用于书签动态加载外部 JS（因 CSP 限制，实际未使用） |
+| `src/example.js` | 使用示例 | API 使用示例和辅助函数 |
 
 **来源**：
 - [page-agent/packages/page-controller/src/dom/dom_tree/index.js](https://github.com/alibaba/page-agent/blob/main/packages/page-controller/src/dom/dom_tree/index.js)
 - 原始来源：[browser-use](https://github.com/browser-use/browser-use)
+
+**部署文件**：
+- `docs/index.html` — 书签工具首页（GitHub Pages）
 
 ---
 
@@ -475,12 +531,36 @@ for (const [id, node] of Object.entries(result.map)) {
 
 ---
 
-### 3.3 调研进度表
+### 3.3 Bookmarklet 技术方案总结
+
+#### 最终方案：内联模式
+
+书签的 `href` 使用 `javascript:` 协议，代码全部内联，不受 CSP 限制。
+
+**为什么不用 Loader 模式（像 page-agent）？**
+
+page-agent 用 loader 模式（`javascript:` 里只放 `<script src="外部URL">`），是因为它的完整代码是一个大框架，无法塞进 `javascript:` URL（浏览器限制约 2000-4000 字符）。而我们的 DOM 提取工具精简版约 2500 字符，可以内联。
+
+但 loader 模式有一个致命问题：**动态创建的 `<script>` 标签受页面 CSP 限制**，在有严格 CSP 的网站（如 GitHub）会被拦截。内联模式则不受 CSP 限制（`javascript:` URL 被浏览器当做导航而非脚本注入）。
+
+**关键修复记录**：
+
+| 问题 | 原因 | 修复 |
+|------|------|------|
+| 拖拽到书签栏后点击打开网页 | `onclick="alert(...)"` 干扰拖拽 | 改为 `onclick="return false;"` |
+| Loader 模式在 GitHub 等网站被 CSP 拦截 | `<script src=外部URL>` 受 CSP 限制 | 改回内联模式 |
+| 内联代码 URL 过长（2252字符） | 早期版本代码未精简 | 使用 inline.js 精简版（~2500字符） |
+| `?.` 等新语法在书签上下文不兼容 | 部分浏览器书签不支持 ES2020 语法 | inline.js 使用兼容性语法 |
+
+---
+
+### 3.4 调研进度表
 
 | 步骤 | 调研主题 | 关键发现 | 对产品选型的影响 |
 |------|----------|----------|------------------|
 | 0 | MCP 基础能力验证 | Accessibility Tree 格式精简易用 | 适合调研 |
 | 0.5 | page-agent 代码集成 | domExtractor.js 已集成，可直接使用 | 产品化基础能力已具备 |
+| 0.6 | Bookmarklet 工具开发 | 内联模式不受 CSP 限制，拖拽需 `onclick="return false;"` | 书签工具可用，CSP 是关键约束 |
 | 1 | 百度结构化数据验证 | - | - |
 
 ---
@@ -509,25 +589,26 @@ for (const [id, node] of Object.entries(result.map)) {
 
 ## 五、项目结构
 
-### 5.1 开发阶段（当前）
+### 5.1 当前项目结构
 
 ```
 waimai/
 ├── docs/
-│   ├── PLAN.md              # 本文件：技术方案与实施计划
-│   └── RESEARCH.md          # 调研成果汇总（待创建）
+│   ├── index.html              # 书签工具首页（GitHub Pages 部署入口）
+│   ├── PLAN.md                 # 本文件：技术方案与实施计划
+│   ├── README.md               # 项目说明
+│   ├── demo-screenshot.png     # 效果截图
+│   └── screenshot.png          # 截图
 ├── src/
-│   ├── domExtractor.js      # ✅ 核心：DOM 结构化数据提取器
-│   └── example.js           # 使用示例和辅助函数
-├── prototype/               # 原型代码（后续步骤产出）
-│   ├── step1-browser-test/  # Step 1: 浏览器能力验证
-│   ├── step2-meituan-login/ # Step 2: 美团登录调研
-│   ├── step3-order-parse/   # Step 3: 订单解析原型
-│   ├── step4-monitor/       # Step 4: 监听机制原型
-│   ├── step5-click/         # Step 5: 点击出餐原型
-│   ├── step6-timer/         # Step 6: 定时策略原型
-│   └── step7-error/         # Step 7: 异常处理原型
-└── README.md
+│   ├── domExtractor.js         # 核心：DOM 结构化数据提取器（完整版）
+│   ├── domExtractor.bookmarklet.js  # 书签版：带高亮、结果打印
+│   ├── domExtractor.console.js      # 控制台版：不带高亮
+│   ├── domExtractor.inline.js        # 内联版：极度精简，用于 javascript: URL
+│   ├── domExtractor.loader.js        # 加载器：短小 loader（因 CSP 限制，未采用）
+│   ├── example.js                    # 使用示例和辅助函数
+│   ├── domExtractor.bookmarklet.json # bookmarklet 版元数据
+│   └── domExtractor.console.json     # console 版元数据
+└── page-agent/                      # 参考项目（阿里 page-agent 源码）
 ```
 
 ### 5.2 产品阶段（后续，根据选型确定）
@@ -570,6 +651,11 @@ meituan-auto-order/
   - 检测登录状态
   - 过期时通过通知系统提醒用户重新登录
 
+### 6.5 CSP 安全策略
+- 部分网站有严格的 Content Security Policy，会拦截外部脚本加载
+- **应对**：Bookmarklet 使用 `javascript:` 内联模式（不受 CSP 限制），不使用动态 `<script>` 加载
+- Chrome 插件的 content-script 不受 CSP 限制，产品化时优先考虑
+
 ---
 
 ## 七、进度跟踪
@@ -578,7 +664,7 @@ meituan-auto-order/
 |------|------|------|----------|------|
 | 0 | 环境准备 | ✅ | 2026/06/05 | MCP 全部能力验证通过 |
 | 0.5 | page-agent 代码集成 | ✅ | 2026/06/05 | domExtractor.js 已集成 |
-| 0.6 | Bookmarklet 工具页面 | ✅ | 2026/06/05 | docs/index.html + 3个版本脚本 |
+| 0.6 | Bookmarklet 工具开发 | ✅ | 2026/06/06 | 内联模式，CSP 兼容，拖拽修复 |
 | 1 | 百度结构化数据验证 | ✅ | 2026/06/05 | 成功提取503节点/20可交互元素 |
 | 2 | 美团商家版登录 | ⏳ | - | 需用户介入登录 |
 | 3 | 订单数据提取 | ⏳ | - | 调研阶段 |
@@ -592,15 +678,15 @@ meituan-auto-order/
 
 ## 八、下一步行动
 
-**当前待执行**：Step 1 — 验证 Chrome MCP 基础能力（百度结构化数据获取）
+**当前待执行**：Step 2 — 美团商家版登录与页面访问
 
 **执行计划**：
-1. 打开百度首页（`https://www.baidu.com`）
-2. 使用 `take_snapshot` 获取页面结构化数据
-3. 在搜索框输入「美团外卖商家版」
-4. 点击搜索按钮
-5. 获取搜索结果页面的 snapshot
-6. 验证数据提取能力
-7. 记录调研成果到 `docs/RESEARCH.md`
+1. 导航到美团外卖商家版（`https://waimaie.meituan.com/`）
+2. 用户介入完成登录（扫码/验证码）
+3. 进入「订单管理」页面
+4. 获取页面 snapshot，了解页面结构
+5. 定位关键模块（订单列表、出餐按钮等）
 
-**用户确认后即刻开始执行。**
+**需要用户配合**：登录扫码环节
+
+---
