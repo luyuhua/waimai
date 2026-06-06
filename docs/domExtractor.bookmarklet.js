@@ -495,6 +495,9 @@
         console.log('  - window.__interactiveElements (可交互元素)');
     }
 
+    // 挂载到全局，供 loader 重复执行时调用
+    window.printResults = printResults;
+
     // ==================== 自动执行 ====================
 
     const result = domExtractor({ viewportExpansion: -1, doHighlightElements: true });

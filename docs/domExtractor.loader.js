@@ -1,7 +1,8 @@
 /**
  * @file DOM 提取工具 Loader - 书签动态加载脚本
  * @description 此文件部署到 GitHub Pages，书签通过 javascript: 协议动态加载此脚本
- * @usage 将此文件的 URL 嵌入书签的 javascript: URL 中
+ * @usage 将此文件部署到 https://luyuhua.github.io/waimai/docs/domExtractor.loader.js
+ *       书签的 href 使用短小的 loader 代码来加载此文件
  */
 
 (function() {
