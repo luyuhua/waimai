@@ -210,9 +210,13 @@ function checkForNewOrders() {
         }
     }
 
-    // 每 30 秒输出一次状态
-    const statusSummary = `[${now}] 监控中... 已知 ${_knownOrders.size} 单 | 待出餐 ${pendingOrders.length} 单`;
-    console.log(`%c${statusSummary}`, 'color: #888;');
+    // 状态提示（每 30 秒输出一次）
+    _checkCount = (_checkCount || 0) + 1;
+    if (_checkCount % 6 === 1) { // 每 6 次检查（约 30 秒）输出一次
+        const pending = orders.filter(o => o.status === 'pending_cook');
+        const statusEmoji = pending.length > 0 ? '🔴' : '✅';
+        console.log(`%c${statusEmoji} [${now}] 监控中... 已知 ${_knownOrders.size} 单 | 待出餐 ${pending.length} 单`, 'color: #888;');
+    }
 }
 
 /**
