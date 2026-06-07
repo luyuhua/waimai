@@ -118,6 +118,17 @@ function extractOrdersWithButtons() {
         }
         data.products = products;
 
+        // 出餐剩余时间
+        const timeTitleEl = card.querySelector('div[class*="time-title"]');
+        if (timeTitleEl) {
+            const parentEl = timeTitleEl.parentElement;
+            if (parentEl) {
+                const timeText = parentEl.innerText.trim();
+                const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+            }
+        }
+
         // ====== 关键：按钮完整结构（包括 <button> 和出餐 <div>）======
         const buttons = getCardButtons(card);
         data.buttons = [];
@@ -192,6 +203,9 @@ function checkForNewOrders() {
             if (order.status === 'pending_cook') {
                 console.log('%c🔴🔴🔴 发现待出餐订单！按钮结构如下：', 'color: red; font-size: 16px; font-weight: bold;');
                 console.log(JSON.stringify(order.buttons, null, 2));
+                if (order.cookRemainingTime) {
+                    console.log('%c⏱️ 出餐剩余时间: ' + order.cookRemainingTime, 'color: #f59e0b; font-size: 14px; font-weight: bold;');
+                }
                 if (order.allClickableElements && order.allClickableElements.length > 0) {
                     console.log('%c⚠️ 还发现非 button 的可点击元素：', 'color: orange; font-weight: bold;');
                     console.log(JSON.stringify(order.allClickableElements, null, 2));

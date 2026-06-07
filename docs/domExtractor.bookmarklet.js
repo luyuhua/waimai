@@ -511,7 +511,8 @@
                 '商品': o.products.map(p => p.name + '×' + p.quantity).join(', '),
                 '预计收入': '¥' + o.estimatedIncome,
                 '出餐用时': o.cookTime || '-',
-                '建议出餐': o.suggestedCookTime || '-'
+                '建议出餐': o.suggestedCookTime || '-',
+                '出餐倒计时': o.cookRemainingTime || '-'
             })));
 
             window.__orders = orders;
@@ -666,6 +667,19 @@
             data.buttons = [];
             for (const btn of buttons) {
                 data.buttons.push({ text: btn.innerText.trim(), className: btn.className || '', tag: btn.tagName.toLowerCase() });
+            }
+
+            // 出餐剩余时间
+            const timeTitleEl = card.querySelector('div[class*="time-title"]');
+            if (timeTitleEl) {
+                // time-title 旁边通常有时间数字，在同一父容器中
+                const parentEl = timeTitleEl.parentElement;
+                if (parentEl) {
+                    // 获取时间数字元素（跳过 time-title 本身，取其余文本）
+                    const timeText = parentEl.innerText.trim();
+                    const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                    data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+                }
             }
 
             orders.push(data);
@@ -851,6 +865,16 @@
 
                     if (isPendingCook) {
                         console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
+
+                        // 出餐剩余时间
+                        var timeTitleEl = card.querySelector('div[class*="time-title"]');
+                        if (timeTitleEl && timeTitleEl.parentElement) {
+                            var timeParentText = timeTitleEl.parentElement.innerText.trim();
+                            var timeRem = timeParentText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                            if (timeRem) {
+                                console.log('%c⏱️ 出餐剩余时间: ' + timeRem[1], 'color: #f59e0b; font-size: 14px; font-weight: bold;');
+                            }
+                        }
 
                         // 抓取出餐按钮结构（包括 <button> 和 <div class="submit-button_xxx">）
                         var buttons = getCardButtons(card);
