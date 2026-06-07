@@ -38,6 +38,14 @@ function getIframeDoc() {
     }
 }
 
+// ======== 按钮查找辅助函数 ========
+// 出餐按钮可能是 <button> 或 <div class="submit-button_xxx">，需要同时查找
+function getCardButtons(card) {
+    var btns = Array.from(card.querySelectorAll('button'));
+    var divBtns = Array.from(card.querySelectorAll('div[class*="submit-button"]'));
+    return btns.concat(divBtns);
+}
+
 /**
  * 提取订单数据（含按钮详细结构）
  */
@@ -110,14 +118,15 @@ function extractOrdersWithButtons() {
         }
         data.products = products;
 
-        // ====== 关键：按钮完整结构 ======
-        const buttons = card.querySelectorAll('button');
+        // ====== 关键：按钮完整结构（包括 <button> 和出餐 <div>）======
+        const buttons = getCardButtons(card);
         data.buttons = [];
         for (const btn of buttons) {
             data.buttons.push({
                 text: btn.innerText.trim(),
                 type: btn.type || '',
                 className: btn.className || '',
+                tag: btn.tagName.toLowerCase(),
                 disabled: btn.disabled,
                 id: btn.id || '',
                 ariaLabel: btn.getAttribute('aria-label') || '',
@@ -128,12 +137,15 @@ function extractOrdersWithButtons() {
             });
         }
 
-        // 额外：查找非 button 的可点击元素（出餐按钮可能不是 <button>）
+        // 额外：查找非 button/div.submit-button 的可点击元素
         const allClickable = card.querySelectorAll('[onclick], [role="button"], [class*="btn"], [class*="button"]');
         data.allClickableElements = [];
         for (const el of allClickable) {
-            if (el.tagName !== 'BUTTON') { // 只记录非 button 的
-                data.allClickableElements.push({
+            // 跳过已被 getCardButtons 捕获的 button 和 submit-button div
+            if (el.tagName === 'BUTTON' || (el.tagName === 'DIV' && /submit-button/.test(el.className))) {
+                continue;
+            }
+            data.allClickableElements.push({
                     tag: el.tagName,
                     text: (el.innerText || '').trim().substring(0, 50),
                     className: el.className?.substring(0, 100) || '',
@@ -192,8 +204,9 @@ function checkForNewOrders() {
                     for (const card of cards) {
                         const text = card.innerText || '';
                         if (text.includes(order.orderNo)) {
-                            const btns = card.querySelectorAll('button');
+                            const btns = getCardButtons(card);
                             for (const btn of btns) {
+                                var btnText = btn.innerText.trim();
                                 if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
                                     setTimeout(() => {
                                         btn.click();

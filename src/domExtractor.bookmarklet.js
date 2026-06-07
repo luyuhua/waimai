@@ -661,11 +661,11 @@
             const packMatch = allText.match(/打包费\s*[￥¥]([\d.]+)/);
             data.packFee = packMatch ? parseFloat(packMatch[1]) : 0;
 
-            // 操作按钮
-            const buttons = card.querySelectorAll('button');
+            // 操作按钮（包括 <button> 和出餐 <div class="submit-button_xxx">）
+            const buttons = getCardButtons(card);
             data.buttons = [];
             for (const btn of buttons) {
-                data.buttons.push({ text: btn.innerText.trim(), className: btn.className || '' });
+                data.buttons.push({ text: btn.innerText.trim(), className: btn.className || '', tag: btn.tagName.toLowerCase() });
             }
 
             orders.push(data);
@@ -678,6 +678,17 @@
     };
 
     // ==================== 自动出餐操作 ====================
+
+    /**
+     * 获取订单卡片中所有可操作按钮元素。
+     * 出餐按钮可能是 <button> 或 <div class="submit-button_xxx">，
+     * 所以需要同时查找两类元素。
+     */
+    function getCardButtons(card) {
+        var btns = Array.from(card.querySelectorAll('button'));
+        var divBtns = Array.from(card.querySelectorAll('div[class*="submit-button"]'));
+        return btns.concat(divBtns);
+    }
 
     /**
      * 按订单号点击指定按钮
@@ -697,7 +708,7 @@
             const text = card.innerText || '';
             const match = text.match(/订单编号[：:]\s*(\d+)/);
             if (match && match[1] === orderNo) {
-                const buttons = card.querySelectorAll('button');
+                const buttons = getCardButtons(card);
                 for (const btn of buttons) {
                     if (btn.innerText.trim().includes(buttonText)) {
                         btn.click();
@@ -735,7 +746,7 @@
             if (text.includes('待出餐')) {
                 const match = text.match(/订单编号[：:]\s*(\d+)/);
                 const orderNo = match ? match[1] : '';
-                const buttons = card.querySelectorAll('button');
+                const buttons = getCardButtons(card);
                 for (const btn of buttons) {
                     const btnText = btn.innerText.trim();
                     if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
@@ -841,14 +852,15 @@
                     if (isPendingCook) {
                         console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
 
-                        // 抓取出餐按钮结构
-                        var buttons = card.querySelectorAll('button');
+                        // 抓取出餐按钮结构（包括 <button> 和 <div class="submit-button_xxx">）
+                        var buttons = getCardButtons(card);
                         var btnInfo = [];
                         for (var i = 0; i < buttons.length; i++) {
                             btnInfo.push({
                                 text: buttons[i].innerText.trim(),
                                 type: buttons[i].type || '',
                                 className: buttons[i].className || '',
+                                tag: buttons[i].tagName.toLowerCase(),
                                 disabled: buttons[i].disabled,
                                 id: buttons[i].id || ''
                             });
