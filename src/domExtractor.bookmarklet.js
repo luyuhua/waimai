@@ -505,7 +505,7 @@
             // 简洁表格输出
             console.table(orders.map(o => ({
                 '#': o.orderIndex,
-                '状态': statusMap[o.status] || o.status,
+                '状态': o.statusText || statusMap[o.status] || o.status,
                 '顾客': o.customerName + (o.isNewCustomer ? '🆕' : ''),
                 '下单时间': o.orderTime,
                 '商品': o.products.map(p => p.name + '×' + p.quantity).join(', '),
@@ -599,14 +599,32 @@
             data.customerOrderCount = countMatch ? parseInt(countMatch[1]) : 0;
             data.isFavCustomer = allText.includes('收藏店铺');
 
-            // 订单状态
-            if (allText.includes('待出餐')) data.status = 'pending_cook';
-            else if (allText.includes('待接单')) data.status = 'pending_accept';
-            else if (allText.includes('已出餐')) data.status = 'cooked';
-            else if (allText.includes('配送中')) data.status = 'delivering';
-            else if (allText.includes('已送达') || allText.includes('用户已收餐')) data.status = 'delivered';
-            else if (allText.includes('已取消')) data.status = 'cancelled';
-            else data.status = 'unknown';
+            // 订单状态（从页面元素提取原始文字，更可靠）
+            data.statusText = '';
+            const baseInfoRightEl = card.querySelector('div[class*="baseInfoRight"]');
+            if (baseInfoRightEl) {
+                data.statusText = baseInfoRightEl.innerText.trim();
+            }
+
+            // 订单状态枚举（基于 statusText 推断，方便逻辑判断）
+            if (data.statusText) {
+                if (data.statusText.includes('待出餐')) data.status = 'pending_cook';
+                else if (data.statusText.includes('待接单')) data.status = 'pending_accept';
+                else if (data.statusText.includes('已出餐') || data.statusText.includes('出餐完成')) data.status = 'cooked';
+                else if (data.statusText.includes('配送中') || data.statusText.includes('骑手已取餐') || data.statusText.includes('骑手已到店')) data.status = 'delivering';
+                else if (data.statusText.includes('已送达') || data.statusText.includes('用户已收餐')) data.status = 'delivered';
+                else if (data.statusText.includes('已取消')) data.status = 'cancelled';
+                else data.status = 'unknown';
+            } else {
+                // 降级：从全文推断
+                if (allText.includes('待出餐')) data.status = 'pending_cook';
+                else if (allText.includes('待接单')) data.status = 'pending_accept';
+                else if (allText.includes('已出餐')) data.status = 'cooked';
+                else if (allText.includes('配送中')) data.status = 'delivering';
+                else if (allText.includes('已送达') || allText.includes('用户已收餐')) data.status = 'delivered';
+                else if (allText.includes('已取消')) data.status = 'cancelled';
+                else data.status = 'unknown';
+            }
 
             // 出餐用时
             const cookTimeMatch = allText.match(/用时(\d{2}):(\d{2})/);
@@ -822,7 +840,24 @@
 
             var now = new Date().toLocaleTimeString();
 
-            function getOrderStatus(allText) {
+            function getOrderStatus(allText, card) {
+                // 优先从页面状态元素提取
+                if (card) {
+                    var baseInfoRight = card.querySelector('div[class*="baseInfoRight"]');
+                    if (baseInfoRight) {
+                        var statusText = baseInfoRight.innerText.trim();
+                        if (statusText) {
+                            if (statusText.includes('待出餐') || statusText.includes('出餐')) return 'pending_cook';
+                            if (statusText.includes('待接单')) return 'pending_accept';
+                            if (statusText.includes('已出餐') || statusText.includes('出餐完成')) return 'cooked';
+                            if (statusText.includes('配送中') || statusText.includes('骑手') || statusText.includes('到店')) return 'delivering';
+                            if (statusText.includes('已送达') || statusText.includes('用户已收餐')) return 'delivered';
+                            if (statusText.includes('已取消')) return 'cancelled';
+                            return 'unknown';
+                        }
+                    }
+                }
+                // 降级：从全文推断
                 if (allText.includes('待接单')) return 'pending_accept';
                 if (allText.includes('待出餐')) return 'pending_cook';
                 if (allText.includes('已出餐')) return 'cooked';
@@ -841,7 +876,7 @@
                 var orderNo = orderNoMatch ? orderNoMatch[1] : '';
                 if (!orderNo) return;
 
-                var currentStatus = getOrderStatus(allText);
+                var currentStatus = getOrderStatus(allText, card);
                 var prevStatus = window.__orderStatusMap[orderNo];
                 var isNew = !window.__knownOrders.has(orderNo);
                 var statusChanged = prevStatus && prevStatus !== currentStatus;

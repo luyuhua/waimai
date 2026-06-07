@@ -81,14 +81,32 @@ function extractOrdersWithButtons() {
         const customerMatch = allText.match(/([^\s]{1,4}(?:先生|女士))/);
         data.customerName = customerMatch ? customerMatch[1] : '';
 
-        // 订单状态
-        if (allText.includes('待出餐')) data.status = 'pending_cook';
-        else if (allText.includes('待接单')) data.status = 'pending_accept';
-        else if (allText.includes('已出餐')) data.status = 'cooked';
-        else if (allText.includes('配送中')) data.status = 'delivering';
-        else if (allText.includes('已送达') || allText.includes('用户已收餐')) data.status = 'delivered';
-        else if (allText.includes('已取消')) data.status = 'cancelled';
-        else data.status = 'unknown';
+        // 订单状态文字（从页面元素提取，更可靠）
+        data.statusText = '';
+        const baseInfoRightEl = card.querySelector('div[class*="baseInfoRight"]');
+        if (baseInfoRightEl) {
+            data.statusText = baseInfoRightEl.innerText.trim();
+        }
+
+        // 订单状态枚举（基于 statusText 推断，方便逻辑判断）
+        if (data.statusText) {
+            if (data.statusText.includes('待出餐')) data.status = 'pending_cook';
+            else if (data.statusText.includes('待接单')) data.status = 'pending_accept';
+            else if (data.statusText.includes('已出餐') || data.statusText.includes('出餐完成')) data.status = 'cooked';
+            else if (data.statusText.includes('配送中') || data.statusText.includes('骑手已取餐') || data.statusText.includes('骑手已到店')) data.status = 'delivering';
+            else if (data.statusText.includes('已送达') || data.statusText.includes('用户已收餐')) data.status = 'delivered';
+            else if (data.statusText.includes('已取消')) data.status = 'cancelled';
+            else data.status = 'unknown';
+        } else {
+            // 降级：从全文推断
+            if (allText.includes('待出餐')) data.status = 'pending_cook';
+            else if (allText.includes('待接单')) data.status = 'pending_accept';
+            else if (allText.includes('已出餐')) data.status = 'cooked';
+            else if (allText.includes('配送中')) data.status = 'delivering';
+            else if (allText.includes('已送达') || allText.includes('用户已收餐')) data.status = 'delivered';
+            else if (allText.includes('已取消')) data.status = 'cancelled';
+            else data.status = 'unknown';
+        }
 
         // 出餐用时
         const cookTimeMatch = allText.match(/用时(\d{2}):(\d{2})/);
