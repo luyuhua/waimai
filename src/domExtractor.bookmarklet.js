@@ -888,6 +888,16 @@
                         customerMatch ? customerMatch[1] : ''
                     );
 
+                    // 输出该订单的完整数据
+                    var allOrders = window.extractOrders ? window.extractOrders() : null;
+                    if (allOrders) {
+                        var thisOrder = allOrders.find(function(o) { return o.orderNo === orderNo; });
+                        if (thisOrder) {
+                            console.log('%c📦 订单详情：', 'color: #667eea; font-weight: bold;');
+                            console.log(JSON.stringify(thisOrder, null, 2));
+                        }
+                    }
+
                     if (isPendingCook) {
                         console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
 
