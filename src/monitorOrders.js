@@ -118,14 +118,18 @@ function extractOrdersWithButtons() {
         }
         data.products = products;
 
-        // 出餐剩余时间
-        const timeTitleEl = card.querySelector('div[class*="time-title"]');
-        if (timeTitleEl) {
-            const parentEl = timeTitleEl.parentElement;
-            if (parentEl) {
-                const timeText = parentEl.innerText.trim();
-                const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
-                data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+        // 出餐剩余时间（只取"剩余"，避免误取"用时"）
+        data.cookRemainingTime = '';
+        const timeTitleEls = card.querySelectorAll('div[class*="time-title"]');
+        for (const tEl of timeTitleEls) {
+            if (tEl.innerText.trim() === '剩余') {
+                const parentEl = tEl.parentElement;
+                if (parentEl) {
+                    const timeText = parentEl.innerText.trim();
+                    const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                    data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+                }
+                break;
             }
         }
 

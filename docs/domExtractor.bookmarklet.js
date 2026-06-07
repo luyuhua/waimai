@@ -669,16 +669,18 @@
                 data.buttons.push({ text: btn.innerText.trim(), className: btn.className || '', tag: btn.tagName.toLowerCase() });
             }
 
-            // 出餐剩余时间
-            const timeTitleEl = card.querySelector('div[class*="time-title"]');
-            if (timeTitleEl) {
-                // time-title 旁边通常有时间数字，在同一父容器中
-                const parentEl = timeTitleEl.parentElement;
-                if (parentEl) {
-                    // 获取时间数字元素（跳过 time-title 本身，取其余文本）
-                    const timeText = parentEl.innerText.trim();
-                    const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
-                    data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+            // 出餐剩余时间（只取"剩余"，避免误取"用时"）
+            data.cookRemainingTime = '';
+            const timeTitleEls = card.querySelectorAll('div[class*="time-title"]');
+            for (const tEl of timeTitleEls) {
+                if (tEl.innerText.trim() === '剩余') {
+                    const parentEl = tEl.parentElement;
+                    if (parentEl) {
+                        const timeText = parentEl.innerText.trim();
+                        const timeMatch = timeText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                        data.cookRemainingTime = timeMatch ? timeMatch[1] : timeText;
+                    }
+                    break;
                 }
             }
 
@@ -866,13 +868,19 @@
                     if (isPendingCook) {
                         console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
 
-                        // 出餐剩余时间
-                        var timeTitleEl = card.querySelector('div[class*="time-title"]');
-                        if (timeTitleEl && timeTitleEl.parentElement) {
-                            var timeParentText = timeTitleEl.parentElement.innerText.trim();
-                            var timeRem = timeParentText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
-                            if (timeRem) {
-                                console.log('%c⏱️ 出餐剩余时间: ' + timeRem[1], 'color: #f59e0b; font-size: 14px; font-weight: bold;');
+                        // 出餐剩余时间（只取"剩余"，避免误取"用时"）
+                        var timeTitleEls = card.querySelectorAll('div[class*="time-title"]');
+                        for (var ti = 0; ti < timeTitleEls.length; ti++) {
+                            if (timeTitleEls[ti].innerText.trim() === '剩余') {
+                                var parentEl = timeTitleEls[ti].parentElement;
+                                if (parentEl) {
+                                    var timeParentText = parentEl.innerText.trim();
+                                    var timeRem = timeParentText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                                    if (timeRem) {
+                                        console.log('%c⏱️ 出餐剩余时间: ' + timeRem[1], 'color: #f59e0b; font-size: 14px; font-weight: bold;');
+                                    }
+                                }
+                                break;
                             }
                         }
 
