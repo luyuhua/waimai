@@ -1343,16 +1343,25 @@
             r.addEventListener('change', function() {
                 window.__cookConfig = window.__cookConfig || { strategy: 'after_order', afterOrderMinSec: 180, afterOrderMaxSec: 240, beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180 };
                 window.__cookConfig.strategy = this.value;
+                panelLog('🔄 策略已切换为: ' + (this.value === 'immediate' ? '立即出餐' : this.value === 'before_deadline' ? '建议出餐前' : '下单后'), 'blue');
             });
         });
         var afterMinInput = document.getElementById('waimai-after-min-sec');
         var afterMaxInput = document.getElementById('waimai-after-max-sec');
         var beforeMinInput = document.getElementById('waimai-before-min-sec');
         var beforeMaxInput = document.getElementById('waimai-before-max-sec');
-        if (afterMinInput) afterMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMinSec = parseInt(this.value) || 180; });
-        if (afterMaxInput) afterMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMaxSec = parseInt(this.value) || 240; });
-        if (beforeMinInput) beforeMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMinSec = parseInt(this.value) || 120; });
-        if (beforeMaxInput) beforeMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMaxSec = parseInt(this.value) || 180; });
+        function logConfigChange() {
+            var c = window.__cookConfig;
+            if (!c) return;
+            var desc = c.strategy === 'immediate' ? '立即出餐' :
+                       c.strategy === 'before_deadline' ? '建议出餐前' + c.beforeDeadlineMinSec + '~' + c.beforeDeadlineMaxSec + '秒' :
+                       '下单后' + c.afterOrderMinSec + '~' + c.afterOrderMaxSec + '秒';
+            panelLog('⚙️ 出餐配置已更新: ' + desc, 'blue');
+        }
+        if (afterMinInput) afterMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMinSec = parseInt(this.value) || 180; logConfigChange(); });
+        if (afterMaxInput) afterMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMaxSec = parseInt(this.value) || 240; logConfigChange(); });
+        if (beforeMinInput) beforeMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMinSec = parseInt(this.value) || 120; logConfigChange(); });
+        if (beforeMaxInput) beforeMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMaxSec = parseInt(this.value) || 180; logConfigChange(); });
         // 从已有配置回填面板输入值
         if (window.__cookConfig) {
             if (afterMinInput) afterMinInput.value = window.__cookConfig.afterOrderMinSec || 180;
