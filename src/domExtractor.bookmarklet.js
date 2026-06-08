@@ -8,7 +8,7 @@
 (function() {
     'use strict';
 
-    // 防止重复执行
+    // 防止重复执行：已加载时仅重新执行提取（不重新拉取脚本）
     if (window.__domExtractorLoaded) {
         console.log('🔄 domExtractor 已加载，重新执行提取...');
         // 清除旧的高亮

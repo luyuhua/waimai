@@ -10,19 +10,8 @@
     // 构建脚本 URL（带缓存破坏参数）
     var scriptUrl = 'https://luyuhua.github.io/waimai/src/domExtractor.bookmarklet.js?t=' + Date.now();
 
-    // 检查是否已加载
-    if (window.__domExtractorLoaded) {
-        console.log('🔄 domExtractor 已加载，重新执行提取...');
-        var result = window.domExtractor({ viewportExpansion: -1 });
-        if (window.printResults) {
-            window.printResults(result);
-        } else {
-            var interactive = window.getInteractiveElements(result.map);
-            console.log('🎯 可交互元素: ' + interactive.length);
-            console.table(interactive);
-        }
-        return;
-    }
+    // 强制重新加载：清除旧标志，确保拉取最新脚本
+    delete window.__domExtractorLoaded;
 
     // 创建 script 标签加载完整代码
     var s = document.createElement('script');
