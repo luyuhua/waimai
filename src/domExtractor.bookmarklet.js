@@ -1430,7 +1430,7 @@
 
     // ==================== 自动执行 ====================
 
-    const result = domExtractor({ viewportExpansion: -1, doHighlightElements: true });
+    const result = domExtractor({ viewportExpansion: -1, doHighlightElements: false });
     printResults(result);
 
     // 自动检测：如果当前页面是美团商家版，创建面板并启动监控
