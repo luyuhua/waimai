@@ -1257,16 +1257,16 @@
         var radios = container.querySelectorAll('input[name="waimai-strategy"]');
         radios.forEach(function(r) {
             r.addEventListener('change', function() {
-                window.__cookConfig = window.__cookConfig || {};
+                window.__cookConfig = window.__cookConfig || { minDelayMin: 2, maxDelayMin: 3, strategy: 'after_order', beforeDeadlineSec: 30 };
                 window.__cookConfig.strategy = this.value;
             });
         });
         var minInput = document.getElementById('waimai-min-delay');
         var maxInput = document.getElementById('waimai-max-delay');
         var beforeInput = document.getElementById('waimai-before-sec');
-        if (minInput) minInput.addEventListener('change', function() { window.__cookConfig.minDelayMin = parseFloat(this.value) || 2; });
-        if (maxInput) maxInput.addEventListener('change', function() { window.__cookConfig.maxDelayMin = parseFloat(this.value) || 3; });
-        if (beforeInput) beforeInput.addEventListener('change', function() { window.__cookConfig.beforeDeadlineSec = parseInt(this.value) || 30; });
+        if (minInput) minInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.minDelayMin = parseFloat(this.value) || 2; });
+        if (maxInput) maxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.maxDelayMin = parseFloat(this.value) || 3; });
+        if (beforeInput) beforeInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineSec = parseInt(this.value) || 30; });
     };
 
     /**
@@ -1369,7 +1369,13 @@
      * 从面板启动监控
      */
     window.startMonitorFromPanel = function() {
-        // 从面板读取配置
+        // 确保配置已初始化
+        window.__cookConfig = window.__cookConfig || {
+            minDelayMin: 2,
+            maxDelayMin: 3,
+            strategy: 'after_order',
+            beforeDeadlineSec: 30
+        };
         var config = window.__cookConfig;
         var minDelay = document.getElementById('waimai-min-delay');
         var maxDelay = document.getElementById('waimai-max-delay');
@@ -1380,11 +1386,12 @@
 
         window.monitorOrders(5000);
 
-        // 更新按钮状态
+        // 更新按钮状态和订单列表
         var startBtn = document.getElementById('waimai-btn-start');
         var stopBtn = document.getElementById('waimai-btn-stop');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
+        setTimeout(updatePanelOrders, 1500);  // 等待首次监控完成后更新
     };
 
     // 监控启停时同步按钮状态
@@ -1395,6 +1402,7 @@
         var stopBtn = document.getElementById('waimai-btn-stop');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
+        setTimeout(updatePanelOrders, 1500);
         return result;
     };
 
@@ -1405,6 +1413,7 @@
         var stopBtn = document.getElementById('waimai-btn-stop');
         if (startBtn) startBtn.disabled = false;
         if (stopBtn) stopBtn.disabled = true;
+        updatePanelOrders();
     };
 
     // ==================== 自动执行 ====================
