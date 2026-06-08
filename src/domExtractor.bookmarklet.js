@@ -815,13 +815,28 @@
     window.monitorOrders = function(intervalMs) {
         intervalMs = intervalMs || 5000;
 
-        // 出餐配置（默认：下单后2~3分钟随机出餐）
+        // 出餐配置（默认：下单后180~240秒随机出餐）
         window.__cookConfig = window.__cookConfig || {
             strategy: 'after_order',
-            minDelayMin: 2,
-            maxDelayMin: 3,
-            beforeDeadlineSec: 30
+            afterOrderMinSec: 180,
+            afterOrderMaxSec: 240,
+            beforeDeadlineMinSec: 120,
+            beforeDeadlineMaxSec: 180
         };
+        // Backward compatibility: migrate old field names
+        if (window.__cookConfig.minDelayMin !== undefined && window.__cookConfig.afterOrderMinSec === undefined) {
+            window.__cookConfig.afterOrderMinSec = Math.round(window.__cookConfig.minDelayMin * 60);
+            delete window.__cookConfig.minDelayMin;
+        }
+        if (window.__cookConfig.maxDelayMin !== undefined && window.__cookConfig.afterOrderMaxSec === undefined) {
+            window.__cookConfig.afterOrderMaxSec = Math.round(window.__cookConfig.maxDelayMin * 60);
+            delete window.__cookConfig.maxDelayMin;
+        }
+        if (window.__cookConfig.beforeDeadlineSec !== undefined && window.__cookConfig.beforeDeadlineMinSec === undefined) {
+            window.__cookConfig.beforeDeadlineMaxSec = window.__cookConfig.beforeDeadlineSec;
+            window.__cookConfig.beforeDeadlineMinSec = Math.round(window.__cookConfig.beforeDeadlineSec * 0.67);
+            delete window.__cookConfig.beforeDeadlineSec;
+        }
         window.__cookTimers = window.__cookTimers || {};
 
         // 停止之前的监控
@@ -1029,29 +1044,33 @@
                                 delay = 1000;
                                 delayDesc = '立即出餐';
                             } else if (config.strategy === 'before_deadline') {
+                                var bdMinSec = Math.min(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
+                                var bdMaxSec = Math.max(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
+                                var bdSec = bdMinSec + Math.round(Math.random() * (bdMaxSec - bdMinSec));
                                 if (remainingSec > 0) {
-                                    delay = Math.max(1000, (remainingSec - config.beforeDeadlineSec) * 1000);
+                                    delay = Math.max(1000, (remainingSec - bdSec) * 1000);
                                 } else if (deadlineDate) {
                                     // 预订单没有倒计时，用绝对时间算
-                                    delay = Math.max(1000, deadlineDate.getTime() - Date.now() - config.beforeDeadlineSec * 1000);
+                                    delay = Math.max(1000, deadlineDate.getTime() - Date.now() - bdSec * 1000);
                                 } else {
                                     delay = 1000; // 兜底：立即出餐
                                 }
-                                delayDesc = '建议出餐前' + config.beforeDeadlineSec + '秒';
+                                delayDesc = '建议出餐前' + config.beforeDeadlineMinSec + '~' + config.beforeDeadlineMaxSec + '秒';
                             } else {
-                                // after_order: 下单后N分钟
+                                // after_order: 下单后N秒
+                                var aoMinSec = Math.min(config.afterOrderMinSec, config.afterOrderMaxSec);
+                                var aoMaxSec = Math.max(config.afterOrderMinSec, config.afterOrderMaxSec);
                                 if (isPreOrder && deadlineDate && remainingSec === 0) {
-                                    // 预订单无倒计时：直接算到建议出餐时间前N分钟
+                                    // 预订单无倒计时：直接算到建议出餐时间前N秒
                                     var preOrderVirtualStart = new Date(deadlineDate.getTime() - 10 * 60 * 1000);
-                                    var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
-                                    var virtualDelayMs = targetMin * 60 * 1000;
+                                    var targetSec = aoMinSec + Math.round(Math.random() * (aoMaxSec - aoMinSec));
+                                    var virtualDelayMs = targetSec * 1000;
                                     delay = Math.max(1000, preOrderVirtualStart.getTime() + virtualDelayMs - Date.now());
                                 } else {
-                                    var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
-                                    var targetSec = Math.round(targetMin * 60);
+                                    var targetSec = aoMinSec + Math.round(Math.random() * (aoMaxSec - aoMinSec));
                                     delay = Math.max(1000, (targetSec - elapsedSec) * 1000);
                                 }
-                                delayDesc = '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
+                                delayDesc = '下单后' + config.afterOrderMinSec + '~' + config.afterOrderMaxSec + '秒';
                             }
 
                             var targetTime = new Date(Date.now() + delay);
@@ -1123,8 +1142,8 @@
 
         var config = window.__cookConfig;
         var strategyDesc = config.strategy === 'immediate' ? '立即出餐' :
-                          config.strategy === 'before_deadline' ? '建议出餐前' + config.beforeDeadlineSec + '秒' :
-                          '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
+                          config.strategy === 'before_deadline' ? '建议出餐前' + config.beforeDeadlineMinSec + '~' + config.beforeDeadlineMaxSec + '秒' :
+                          '下单后' + config.afterOrderMinSec + '~' + config.afterOrderMaxSec + '秒';
         panelLog('📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查', 'blue');
         panelLog('⏰ 出餐策略: ' + strategyDesc, 'orange');
 
@@ -1232,7 +1251,7 @@
             '.waimai-strategy { margin-top: 6px; }',
             '.waimai-strategy label { display: flex; align-items: center; gap: 6px; padding: 4px 0; cursor: pointer; color: #ccc; font-size: 13px; }',
             '.waimai-strategy input[type="radio"] { accent-color: #667eea; }',
-            '.waimai-strategy input[type="number"] { width: 40px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: #fff; padding: 2px 4px; font-size: 13px; text-align: center; }',
+            '.waimai-strategy input[type="number"] { width: 50px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: #fff; padding: 2px 4px; font-size: 13px; text-align: center; }',
             '.waimai-strategy .param-group { display: none; margin-left: 22px; padding: 4px 0; }',
             '.waimai-strategy .param-group.active { display: block; }',
             '.waimai-btn-row { display: flex; gap: 8px; margin-top: 8px; }',
@@ -1297,8 +1316,8 @@
             '<div class="waimai-section">',
             '  <div class="waimai-section-title"><span>⏰ 出餐策略</span></div>',
             '  <div class="waimai-strategy">',
-            '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-min-delay" value="2" min="0" max="30" style="width:36px">~<input type="number" id="waimai-max-delay" value="3" min="0" max="30" style="width:36px"> 分钟</label>',
-            '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-sec" value="30" min="0" max="600" style="width:46px"> 秒</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="180" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="240" min="0" max="1800" style="width:50px"> 秒</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="immediate"> 立即出餐</label>',
             '  </div>',
             '  <div class="waimai-btn-row">',
@@ -1322,16 +1341,27 @@
         var radios = container.querySelectorAll('input[name="waimai-strategy"]');
         radios.forEach(function(r) {
             r.addEventListener('change', function() {
-                window.__cookConfig = window.__cookConfig || { minDelayMin: 2, maxDelayMin: 3, strategy: 'after_order', beforeDeadlineSec: 30 };
+                window.__cookConfig = window.__cookConfig || { strategy: 'after_order', afterOrderMinSec: 180, afterOrderMaxSec: 240, beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180 };
                 window.__cookConfig.strategy = this.value;
             });
         });
-        var minInput = document.getElementById('waimai-min-delay');
-        var maxInput = document.getElementById('waimai-max-delay');
-        var beforeInput = document.getElementById('waimai-before-sec');
-        if (minInput) minInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.minDelayMin = parseFloat(this.value) || 2; });
-        if (maxInput) maxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.maxDelayMin = parseFloat(this.value) || 3; });
-        if (beforeInput) beforeInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineSec = parseInt(this.value) || 30; });
+        var afterMinInput = document.getElementById('waimai-after-min-sec');
+        var afterMaxInput = document.getElementById('waimai-after-max-sec');
+        var beforeMinInput = document.getElementById('waimai-before-min-sec');
+        var beforeMaxInput = document.getElementById('waimai-before-max-sec');
+        if (afterMinInput) afterMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMinSec = parseInt(this.value) || 180; });
+        if (afterMaxInput) afterMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMaxSec = parseInt(this.value) || 240; });
+        if (beforeMinInput) beforeMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMinSec = parseInt(this.value) || 120; });
+        if (beforeMaxInput) beforeMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMaxSec = parseInt(this.value) || 180; });
+        // 从已有配置回填面板输入值
+        if (window.__cookConfig) {
+            if (afterMinInput) afterMinInput.value = window.__cookConfig.afterOrderMinSec || 180;
+            if (afterMaxInput) afterMaxInput.value = window.__cookConfig.afterOrderMaxSec || 240;
+            if (beforeMinInput) beforeMinInput.value = window.__cookConfig.beforeDeadlineMinSec || 120;
+            if (beforeMaxInput) beforeMaxInput.value = window.__cookConfig.beforeDeadlineMaxSec || 180;
+            var currentStrategy = window.__cookConfig.strategy || 'after_order';
+            radios.forEach(function(r) { r.checked = (r.value === currentStrategy); });
+        }
     };
 
     /**
@@ -1443,18 +1473,35 @@
     window.startMonitorFromPanel = function() {
         // 确保配置已初始化
         window.__cookConfig = window.__cookConfig || {
-            minDelayMin: 2,
-            maxDelayMin: 3,
             strategy: 'after_order',
-            beforeDeadlineSec: 30
+            afterOrderMinSec: 180,
+            afterOrderMaxSec: 240,
+            beforeDeadlineMinSec: 120,
+            beforeDeadlineMaxSec: 180
         };
         var config = window.__cookConfig;
-        var minDelay = document.getElementById('waimai-min-delay');
-        var maxDelay = document.getElementById('waimai-max-delay');
-        var beforeSec = document.getElementById('waimai-before-sec');
-        if (minDelay) config.minDelayMin = parseFloat(minDelay.value) || 2;
-        if (maxDelay) config.maxDelayMin = parseFloat(maxDelay.value) || 3;
-        if (beforeSec) config.beforeDeadlineSec = parseInt(beforeSec.value) || 30;
+        // Backward compatibility: migrate old field names
+        if (config.minDelayMin !== undefined && config.afterOrderMinSec === undefined) {
+            config.afterOrderMinSec = Math.round(config.minDelayMin * 60);
+            delete config.minDelayMin;
+        }
+        if (config.maxDelayMin !== undefined && config.afterOrderMaxSec === undefined) {
+            config.afterOrderMaxSec = Math.round(config.maxDelayMin * 60);
+            delete config.maxDelayMin;
+        }
+        if (config.beforeDeadlineSec !== undefined && config.beforeDeadlineMinSec === undefined) {
+            config.beforeDeadlineMaxSec = config.beforeDeadlineSec;
+            config.beforeDeadlineMinSec = Math.round(config.beforeDeadlineSec * 0.67);
+            delete config.beforeDeadlineSec;
+        }
+        var afterMinEl = document.getElementById('waimai-after-min-sec');
+        var afterMaxEl = document.getElementById('waimai-after-max-sec');
+        var beforeMinEl = document.getElementById('waimai-before-min-sec');
+        var beforeMaxEl = document.getElementById('waimai-before-max-sec');
+        if (afterMinEl) config.afterOrderMinSec = parseInt(afterMinEl.value) || 180;
+        if (afterMaxEl) config.afterOrderMaxSec = parseInt(afterMaxEl.value) || 240;
+        if (beforeMinEl) config.beforeDeadlineMinSec = parseInt(beforeMinEl.value) || 120;
+        if (beforeMaxEl) config.beforeDeadlineMaxSec = parseInt(beforeMaxEl.value) || 180;
 
         window.monitorOrders(5000);
 

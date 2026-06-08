@@ -251,45 +251,55 @@ because it violates the following Content Security Policy directive: "script-src
 
 ---
 
-### ⏳ Step 5: 出餐规则与自动出餐（待开发 + 验证）
+### ✅ Step 5: 出餐规则引擎与悬浮面板
 
-**目标**：编写出餐规则引擎并实现自动出餐，端到端验证
+**出餐规则引擎**：
 
-**背景**：目前 `autoCookAll()` 和 `clickOrderButton()` 只是手动触发的点击函数，不算自动出餐。真正的自动出餐需要：
-1. 写出餐规则（什么条件下自动点出餐、延迟多久等）
-2. 在监控循环中集成规则引擎，自动决策 + 自动执行
-3. 端到端验证：新订单进来 → 规则匹配 → 自动点击出餐 → 状态变化确认
+三种策略，默认下单后180~240秒随机延迟：
 
-**出餐规则设计**：
-```
-订单到达 → 匹配出餐规则 → 决策（立即/延迟/不自动）
-              ↓
-         可配置规则：
-         - strategy: immediate（立即出餐）/ delay（延迟 N 秒）/ timer（按倒计时）
-         - delaySeconds: 延迟出餐秒数（默认 0）
-         - cookRemainingThreshold: 出餐倒计时 ≤ N 秒时自动出餐
-```
+| 策略 | 配置 | 计算方式 |
+|------|------|----------|
+| `after_order`（默认） | `afterOrderMinSec: 180, afterOrderMaxSec: 240` | delay = 随机(180~240秒) - 已用时 |
+| `before_deadline` | `beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180` | delay = 剩余时间 - 随机(120~180秒) |
+| `immediate` | 无 | delay = 1秒 |
 
-**已有数据基础**：
-- `cookRemainingTime`：出餐倒计时（如 `09:37`）
-- `suggestedCookTime`：建议出餐时长（如 `11分25秒`）
-- `status` + `riderStatus`：双维度状态判断
+时间计算：
+- 正常单：已用时 = 建议出餐时长（秒） - 剩余时间（秒）
+- 预订单：虚拟下单时间 = 建议出餐时间点 - 10分钟
 
-**步骤**：
-1. 设计出餐规则配置结构
-2. 在 `monitorOrders` 中集成规则引擎（监听 → 规则匹配 → 自动点击）
-3. 处理点击后的确认弹窗（如有）
-4. 端到端验证：真实订单走完整个流程
-5. 异常处理：按钮找不到、网络超时、重复点击防护
+定时器使用 `setTimeout` 独立于轮询，存在 `window.__cookTimers` 中：
+- 状态变化时自动取消（订单已出餐/已取消）
+- `stopOrderMonitor()` 清除所有定时器
+- 面板可查看/取消定时器（`showCookTimers()`、`cancelCookTimer()`）
 
-**预期产出**：
-- 出餐规则引擎代码
-- 自动出餐完整流程验证通过
-- **调研成果**：出餐规则配置化设计、异常场景清单
+**悬浮控制面板**：
+
+右下角固定，深色半透明主题，`waimai-` 前缀避免样式冲突。
+
+| 模块 | 功能 |
+|------|------|
+| 📋 订单列表 | 实时显示订单状态、骑手状态、出餐倒计时；预订单显示预约出餐时间 |
+| ⏰ 出餐策略 | `after_order`/`before_deadline`/`immediate` 三种策略 + 参数输入 |
+| 📝 日志 | 替代console.log，带颜色标记，最多100条自动滚动 |
+
+折叠态：显示待出餐数量角标，点击展开。
+展开态：4个模块上下排列，订单列表可展开/收起。
+定时器倒计时：每秒独立刷新（`data-timer-end` 属性），不依赖轮询频率。
+
+**预订单处理**：
+
+| 字段 | 正常单 | 预订单 |
+|------|--------|--------|
+| `isPreOrder` | false | true |
+| `suggestedCookTime` | "10分00秒" | 空 |
+| `suggestedCookDeadline` | 空 | "06-09 11:43" |
+| `cookRemainingTime` | "08:19"（倒计时） | 空（备餐提醒后才开始计时） |
+
+虚拟下单时间 = 建议出餐时间 - 10分钟，使 after_order 策略对预订单也适用。
 
 ---
 
-### ⏳ Step 7: 异常处理与稳定性调研
+### ⏳ Step 6: 异常处理与稳定性
 
 **目标**：评估并验证各种异常场景的处理方案
 
