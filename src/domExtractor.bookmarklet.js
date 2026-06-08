@@ -11,7 +11,9 @@
     // 防止重复执行
     if (window.__domExtractorLoaded) {
         console.log('🔄 domExtractor 已加载，重新执行提取...');
-        const result = window.domExtractor({ viewportExpansion: -1 });
+        // 清除旧的高亮
+        if (window.clearHighlights) window.clearHighlights();
+        const result = window.domExtractor({ viewportExpansion: -1, doHighlightElements: false });
         printResults(result);
         return;
     }
