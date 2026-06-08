@@ -1392,13 +1392,10 @@
                     statusTag = '<span class="waimai-tag waimai-tag-pending">预订单</span>';
                     detailHtml = '<div class="waimai-order-detail">🕒 预约出餐 ' + o.suggestedCookDeadline + '</div>';
                 }
-                // 检查是否有定时器
+                // 检查是否有定时器（每秒倒计时更新）
                 var timer = window.__cookTimers && window.__cookTimers[o.orderNo];
                 if (timer) {
-                    var remain = Math.max(0, Math.round((timer.targetTime.getTime() - Date.now()) / 1000));
-                    var min = Math.floor(remain / 60);
-                    var sec = remain % 60;
-                    detailHtml = '<div class="waimai-order-detail">⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐</div>';
+                    detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timer.targetTime.getTime() + '">⏰ ...</div>';
                 } else if (!detailHtml && o.cookRemainingTime) {
                     detailHtml = '<div class="waimai-order-detail">⏳ 剩余 <span class="timer">' + o.cookRemainingTime + '</span></div>';
                 }
@@ -1506,6 +1503,25 @@
             updatePanelOrders();
             // 每5秒更新面板订单列表（与监控同步）
             setInterval(updatePanelOrders, 5000);
+            // 每秒刷新定时器倒计时显示
+            setInterval(function() {
+                var listEl = document.getElementById('waimai-order-list');
+                if (!listEl) return;
+                var timerItems = listEl.querySelectorAll('[data-timer-end]');
+                for (var i = 0; i < timerItems.length; i++) {
+                    var el = timerItems[i];
+                    var endTime = parseInt(el.getAttribute('data-timer-end'));
+                    var remain = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+                    if (remain <= 0) {
+                        el.innerHTML = '⏰ 出餐中...';
+                        el.removeAttribute('data-timer-end');
+                    } else {
+                        var min = Math.floor(remain / 60);
+                        var sec = remain % 60;
+                        el.innerHTML = '⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐';
+                    }
+                }
+            }, 1000);
         }, 1000);
     } else {
         createPanel();
