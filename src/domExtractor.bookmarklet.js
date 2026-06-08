@@ -896,7 +896,7 @@
                 if (statusChanged && !isPendingCook && window.__cookTimers[orderNo]) {
                     clearTimeout(window.__cookTimers[orderNo].timerId);
                     delete window.__cookTimers[orderNo];
-                    console.log('%c⏹️ 订单 ' + orderNo + ' 状态变化为' + (cookLabel[currentStatus] || currentStatus) + '，取消定时出餐', 'color: #888;');
+                    panelLog('⏹️ 订单 ' + orderNo + ' 状态变化为' + (cookLabel[currentStatus] || currentStatus) + '，取消定时出餐', 'gray');
                 }
 
                 // 新订单 或 状态变为"待出餐"
@@ -905,12 +905,7 @@
                     var label = riderStatus ? statusLabel + ' | ' + riderStatus : statusLabel;
                     var reason = isNew ? '🆕 新订单' : '🔄 状态变化 → ' + label;
                     var statusEmoji = isPendingCook ? '🔴' : '🔵';
-                    console.log(
-                        '%c' + statusEmoji + ' ' + reason + ' #%s %s',
-                        'font-weight: bold; font-size: 14px; color: ' + (isPendingCook ? 'red' : '#667eea') + ';',
-                        indexMatch ? indexMatch[1] : '?',
-                        customerMatch ? customerMatch[1] : ''
-                    );
+                    panelLog('🆕 新订单 #' + (indexMatch ? indexMatch[1] : '?') + ' ' + (customerMatch ? customerMatch[1] : ''), 'blue');
 
                     // 输出该订单的完整数据
                     var allOrders = window.extractOrders ? window.extractOrders() : null;
@@ -923,7 +918,7 @@
                     }
 
                     if (isPendingCook) {
-                        console.log('%c🔴🔴🔴 发现待出餐订单！', 'color: red; font-size: 16px; font-weight: bold;');
+                        panelLog('🔴🔴🔴 发现待出餐订单！', 'red');
 
                         // 出餐剩余时间（只取"剩余"，避免误取"用时"）
                         var timeTitleEls = card.querySelectorAll('div[class*="time-title"]');
@@ -1014,7 +1009,7 @@
                                                 var txt2 = btns2[b].innerText.trim();
                                                 if (txt2 === '出餐完成' || txt2 === '出餐' || txt2 === '确认出餐') {
                                                     btns2[b].click();
-                                                    console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
+                                                    panelLog('✅ 已自动出餐: 订单 ' + no, 'green');
                                                     break;
                                                 }
                                             }
@@ -1028,12 +1023,9 @@
 
                                 var minStr = Math.floor(delaySec / 60);
                                 var secStr = delaySec % 60;
-                                console.log(
-                                    '%c⏰ 订单 ' + no + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）策略: ' + delayDesc,
-                                    'color: #2196F3; font-weight: bold;'
-                                );
+                                panelLog('⏰ 订单 ' + no + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）', 'orange');
                                 if (suggestedSec > 0) {
-                                    console.log('%c   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'color: #888;');
+                                    panelLog('   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'gray');
                                 }
                             })(orderNo);
                         }
@@ -1050,7 +1042,7 @@
                 var emoji = pendingCount > 0 ? '🔴' : '✅';
                 var timerCount = Object.keys(window.__cookTimers).length;
                 var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
-                console.log('%c' + emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'color: #888;');
+                panelLog(emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray');
             }
         }
 
@@ -1068,10 +1060,8 @@
         var strategyDesc = config.strategy === 'immediate' ? '立即出餐' :
                           config.strategy === 'before_deadline' ? '建议出餐前' + config.beforeDeadlineSec + '秒' :
                           '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
-        console.log('%c📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查', 'color: #667eea; font-size: 14px; font-weight: bold;');
-        console.log('%c⏰ 出餐策略: ' + strategyDesc, 'color: #2196F3; font-weight: bold;');
-        console.log('%c💡 调用 window.stopOrderMonitor() 停止监控', 'color: #888;');
-        console.log('%c💡 window.__cookConfig 查看配置 | window.showCookTimers() 查看待执行出餐', 'color: #888;');
+        panelLog('📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查', 'blue');
+        panelLog('⏰ 出餐策略: ' + strategyDesc, 'orange');
 
         window.__orderMonitorTimer = setInterval(checkOrders, intervalMs);
         checkOrders(); // 立即检查一次
@@ -1131,21 +1121,312 @@
         console.log('%c⏹️ 订单监控已停止，所有定时出餐任务已取消', 'color: #888; font-size: 14px;');
     };
 
+    // ==================== 悬浮控制面板 ====================
+
+    /**
+     * 创建悬浮控制面板
+     */
+    window.createPanel = function() {
+        // 防止重复创建
+        if (document.getElementById('waimai-panel-container')) {
+            return;
+        }
+
+        // 注入样式
+        var style = document.createElement('style');
+        style.id = 'waimai-panel-styles';
+        style.textContent = [
+            '#waimai-panel-container { position: fixed; bottom: 20px; right: 20px; z-index: 2147483640; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; }',
+            '#waimai-panel-toggle { background: rgba(26,26,46,0.95); color: #fff; border: none; border-radius: 20px; padding: 10px 18px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 20px rgba(102,126,234,0.4); transition: transform 0.2s; }',
+            '#waimai-panel-toggle:hover { transform: scale(1.05); }',
+            '#waimai-panel-toggle .badge { background: #f59e0b; color: #1a1a2e; border-radius: 10px; padding: 1px 7px; font-size: 12px; font-weight: bold; }',
+            '#waimai-panel { display: none; background: rgba(26,26,46,0.97); color: #e0e0e0; border-radius: 12px; width: 380px; max-height: 80vh; box-shadow: 0 8px 40px rgba(0,0,0,0.4); overflow: hidden; margin-bottom: 8px; }',
+            '#waimai-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }',
+            '#waimai-panel-header h3 { margin: 0; font-size: 15px; color: #fff; }',
+            '#waimai-panel-header .header-btns { display: flex; gap: 8px; }',
+            '#waimai-panel-header .header-btns button { background: none; border: 1px solid rgba(255,255,255,0.2); color: #aaa; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px; }',
+            '#waimai-panel-header .header-btns button:hover { color: #fff; border-color: #fff; }',
+            '.waimai-section { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }',
+            '.waimai-section-title { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }',
+            '.waimai-section-title button { background: none; border: none; color: #667eea; cursor: pointer; font-size: 12px; padding: 0; }',
+            '.waimai-order-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }',
+            '.waimai-order-item:last-child { border-bottom: none; }',
+            '.waimai-order-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }',
+            '.waimai-order-id { font-weight: bold; color: #fff; }',
+            '.waimai-order-name { color: #e0e0e0; }',
+            '.waimai-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; }',
+            '.waimai-tag-pending { background: rgba(239,68,68,0.2); color: #f87171; }',
+            '.waimai-tag-cooked { background: rgba(34,197,94,0.2); color: #4ade80; }',
+            '.waimai-tag-rider { background: rgba(59,130,246,0.2); color: #60a5fa; }',
+            '.waimai-tag-other { background: rgba(156,163,175,0.2); color: #9ca3af; }',
+            '.waimai-order-detail { font-size: 12px; color: #888; padding-left: 4px; }',
+            '.waimai-order-detail .timer { color: #f59e0b; font-weight: bold; }',
+            '.waimai-order-detail .done { color: #4ade80; }',
+            '#waimai-order-list { max-height: 150px; overflow-y: auto; }',
+            '#waimai-order-list.expanded { max-height: 400px; }',
+            '.waimai-strategy { margin-top: 6px; }',
+            '.waimai-strategy label { display: flex; align-items: center; gap: 6px; padding: 4px 0; cursor: pointer; color: #ccc; font-size: 13px; }',
+            '.waimai-strategy input[type="radio"] { accent-color: #667eea; }',
+            '.waimai-strategy input[type="number"] { width: 40px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: #fff; padding: 2px 4px; font-size: 13px; text-align: center; }',
+            '.waimai-strategy .param-group { display: none; margin-left: 22px; padding: 4px 0; }',
+            '.waimai-strategy .param-group.active { display: block; }',
+            '.waimai-btn-row { display: flex; gap: 8px; margin-top: 8px; }',
+            '.waimai-btn { border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity 0.2s; }',
+            '.waimai-btn:hover { opacity: 0.85; }',
+            '.waimai-btn-start { background: #4CAF50; color: #fff; }',
+            '.waimai-btn-stop { background: #f44336; color: #fff; }',
+            '.waimai-btn:disabled { opacity: 0.4; cursor: not-allowed; }',
+            '#waimai-log-area { height: 120px; overflow-y: auto; font-size: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; line-height: 1.6; }',
+            '.waimai-log-entry { padding: 1px 0; }',
+            '.waimai-log-red { color: #f87171; }',
+            '.waimai-log-green { color: #4ade80; }',
+            '.waimai-log-blue { color: #60a5fa; }',
+            '.waimai-log-orange { color: #f59e0b; }',
+            '.waimai-log-gray { color: #9ca3af; }',
+            '#waimai-log-area::-webkit-scrollbar { width: 6px; }',
+            '#waimai-log-area::-webkit-scrollbar-track { background: transparent; }',
+            '#waimai-log-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }',
+            '#waimai-order-list::-webkit-scrollbar { width: 6px; }',
+            '#waimai-order-list::-webkit-scrollbar-track { background: transparent; }',
+            '#waimai-order-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }',
+        ].join('\n');
+        document.head.appendChild(style);
+
+        // 创建容器
+        var container = document.createElement('div');
+        container.id = 'waimai-panel-container';
+
+        // 折叠按钮
+        var toggle = document.createElement('button');
+        toggle.id = 'waimai-panel-toggle';
+        toggle.innerHTML = '🛵 <span class="badge" id="waimai-badge">0</span> 待出餐 ▼';
+        toggle.onclick = function() {
+            var panel = document.getElementById('waimai-panel');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                panel.style.display = 'block';
+                toggle.innerHTML = '🛵 <span class="badge" id="waimai-badge">' + (window.__pendingCount || 0) + '</span> 待出餐 ▲';
+            } else {
+                panel.style.display = 'none';
+                toggle.innerHTML = '🛵 <span class="badge" id="waimai-badge">' + (window.__pendingCount || 0) + '</span> 待出餐 ▼';
+            }
+        };
+        container.appendChild(toggle);
+
+        // 面板主体
+        var panel = document.createElement('div');
+        panel.id = 'waimai-panel';
+        panel.innerHTML = [
+            '<div id="waimai-panel-header">',
+            '  <h3>🛵 美团出餐助手</h3>',
+            '  <div class="header-btns">',
+            '    <button onclick="document.getElementById(\'waimai-panel\').style.display=\'none\'; document.getElementById(\'waimai-panel-toggle\').innerHTML=\'🛵 <span class=badge id=waimai-badge>\' + (window.__pendingCount||0) + \'</span> 待出餐 ▼\';">收起</button>',
+            '  </div>',
+            '</div>',
+            '<div class="waimai-section">',
+            '  <div class="waimai-section-title">',
+            '    <span>📋 订单列表</span>',
+            '    <button onclick="var l=document.getElementById(\'waimai-order-list\');l.classList.toggle(\'expanded\');this.textContent=l.classList.contains(\'expanded\')?\'收起\':\'展开\';">展开</button>',
+            '  </div>',
+            '  <div id="waimai-order-list">暂无订单数据</div>',
+            '</div>',
+            '<div class="waimai-section">',
+            '  <div class="waimai-section-title"><span>⏰ 出餐策略</span></div>',
+            '  <div class="waimai-strategy">',
+            '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-min-delay" value="2" min="0" max="30" style="width:36px">~<input type="number" id="waimai-max-delay" value="3" min="0" max="30" style="width:36px"> 分钟</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-sec" value="30" min="0" max="600" style="width:46px"> 秒</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="immediate"> 立即出餐</label>',
+            '  </div>',
+            '  <div class="waimai-btn-row">',
+            '    <button class="waimai-btn waimai-btn-start" id="waimai-btn-start" onclick="window.startMonitorFromPanel()">开始监控</button>',
+            '    <button class="waimai-btn waimai-btn-stop" id="waimai-btn-stop" onclick="window.stopOrderMonitor()" disabled>停止监控</button>',
+            '  </div>',
+            '</div>',
+            '<div class="waimai-section">',
+            '  <div class="waimai-section-title">',
+            '    <span>📝 日志</span>',
+            '    <button onclick="document.getElementById(\'waimai-log-area\').innerHTML=\'\';">清空</button>',
+            '  </div>',
+            '  <div id="waimai-log-area"></div>',
+            '</div>',
+        ].join('');
+
+        container.appendChild(panel);
+        document.body.appendChild(container);
+
+        // 绑定策略切换
+        var radios = container.querySelectorAll('input[name="waimai-strategy"]');
+        radios.forEach(function(r) {
+            r.addEventListener('change', function() {
+                window.__cookConfig = window.__cookConfig || {};
+                window.__cookConfig.strategy = this.value;
+            });
+        });
+        var minInput = document.getElementById('waimai-min-delay');
+        var maxInput = document.getElementById('waimai-max-delay');
+        var beforeInput = document.getElementById('waimai-before-sec');
+        if (minInput) minInput.addEventListener('change', function() { window.__cookConfig.minDelayMin = parseFloat(this.value) || 2; });
+        if (maxInput) maxInput.addEventListener('change', function() { window.__cookConfig.maxDelayMin = parseFloat(this.value) || 3; });
+        if (beforeInput) beforeInput.addEventListener('change', function() { window.__cookConfig.beforeDeadlineSec = parseInt(this.value) || 30; });
+    };
+
+    /**
+     * 面板日志输出
+     */
+    window.panelLog = function(message, color) {
+        // 保留 console 输出
+        var styleMap = { red: 'red', green: 'green', blue: '#667eea', orange: '#f59e0b', gray: '#888' };
+        var consoleStyle = '';
+        if (color === 'red') consoleStyle = 'color: red; font-weight: bold;';
+        else if (color === 'green') consoleStyle = 'color: green; font-weight: bold;';
+        else if (color === 'blue') consoleStyle = 'color: #667eea; font-weight: bold;';
+        else if (color === 'orange') consoleStyle = 'color: #f59e0b; font-weight: bold;';
+        console.log('%c' + message, consoleStyle || 'color: #888;');
+
+        // 面板日志
+        var logArea = document.getElementById('waimai-log-area');
+        if (logArea) {
+            var entry = document.createElement('div');
+            entry.className = 'waimai-log-entry';
+            var now = new Date().toLocaleTimeString();
+            var colorClass = color ? 'waimai-log-' + color : '';
+            entry.innerHTML = '<span style="color:#666">' + now + '</span> <span class="' + colorClass + '">' + message + '</span>';
+            logArea.appendChild(entry);
+            // 最多保留 100 条
+            while (logArea.childElementCount > 100) {
+                logArea.removeChild(logArea.firstChild);
+            }
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    };
+
+    /**
+     * 更新面板订单列表
+     */
+    window.updatePanelOrders = function() {
+        var orders = window.extractOrders ? window.extractOrders() : null;
+        var listEl = document.getElementById('waimai-order-list');
+        if (!listEl) return;
+        var badge = document.getElementById('waimai-badge');
+
+        if (!orders || orders.length === 0) {
+            listEl.innerHTML = '<div style="color:#666;font-size:12px;">暂无订单数据</div>';
+            if (badge) badge.textContent = '0';
+            return;
+        }
+
+        var pendingCount = 0;
+        var html = '';
+        orders.forEach(function(o) {
+            var statusTag = '';
+            var detailHtml = '';
+            if (o.status === 'pending_cook') {
+                statusTag = '<span class="waimai-tag waimai-tag-pending">待出餐</span>';
+                pendingCount++;
+                // 检查是否有定时器
+                var timer = window.__cookTimers && window.__cookTimers[o.orderNo];
+                if (timer) {
+                    var remain = Math.max(0, Math.round((timer.targetTime.getTime() - Date.now()) / 1000));
+                    var min = Math.floor(remain / 60);
+                    var sec = remain % 60;
+                    detailHtml = '<div class="waimai-order-detail">⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐</div>';
+                } else if (o.cookRemainingTime) {
+                    detailHtml = '<div class="waimai-order-detail">⏳ 剩余 <span class="timer">' + o.cookRemainingTime + '</span></div>';
+                }
+            } else if (o.status === 'cooked') {
+                statusTag = '<span class="waimai-tag waimai-tag-cooked">已出餐</span>';
+                detailHtml = '<div class="waimai-order-detail"><span class="done">✅ 已出餐</span></div>';
+            } else {
+                var label = o.statusText || o.status;
+                statusTag = '<span class="waimai-tag waimai-tag-other">' + label + '</span>';
+            }
+
+            var riderTag = o.riderStatus ? ' <span class="waimai-tag waimai-tag-rider">' + o.riderStatus + '</span>' : '';
+            var name = o.customerName || '';
+
+            html += '<div class="waimai-order-item">' +
+                '<div class="waimai-order-top">' +
+                '<span class="waimai-order-id">#' + (o.orderIndex || '?') + '</span> ' +
+                '<span class="waimai-order-name">' + name + '</span> ' +
+                statusTag + riderTag +
+                '</div>' +
+                detailHtml +
+                '</div>';
+        });
+
+        listEl.innerHTML = html;
+        if (badge) badge.textContent = pendingCount;
+        window.__pendingCount = pendingCount;
+
+        // 更新折叠按钮文字
+        var toggle = document.getElementById('waimai-panel-toggle');
+        if (toggle) {
+            var arrow = document.getElementById('waimai-panel').style.display === 'none' ? '▼' : '▲';
+            toggle.innerHTML = '🛵 <span class="badge" id="waimai-badge">' + pendingCount + '</span> 待出餐 ' + arrow;
+        }
+    };
+
+    /**
+     * 从面板启动监控
+     */
+    window.startMonitorFromPanel = function() {
+        // 从面板读取配置
+        var config = window.__cookConfig;
+        var minDelay = document.getElementById('waimai-min-delay');
+        var maxDelay = document.getElementById('waimai-max-delay');
+        var beforeSec = document.getElementById('waimai-before-sec');
+        if (minDelay) config.minDelayMin = parseFloat(minDelay.value) || 2;
+        if (maxDelay) config.maxDelayMin = parseFloat(maxDelay.value) || 3;
+        if (beforeSec) config.beforeDeadlineSec = parseInt(beforeSec.value) || 30;
+
+        window.monitorOrders(5000);
+
+        // 更新按钮状态
+        var startBtn = document.getElementById('waimai-btn-start');
+        var stopBtn = document.getElementById('waimai-btn-stop');
+        if (startBtn) startBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+    };
+
+    // 监控启停时同步按钮状态
+    var _origMonitor = window.monitorOrders;
+    window.monitorOrders = function(intervalMs) {
+        var result = _origMonitor(intervalMs);
+        var startBtn = document.getElementById('waimai-btn-start');
+        var stopBtn = document.getElementById('waimai-btn-stop');
+        if (startBtn) startBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+        return result;
+    };
+
+    var _origStop = window.stopOrderMonitor;
+    window.stopOrderMonitor = function() {
+        _origStop();
+        var startBtn = document.getElementById('waimai-btn-start');
+        var stopBtn = document.getElementById('waimai-btn-stop');
+        if (startBtn) startBtn.disabled = false;
+        if (stopBtn) stopBtn.disabled = true;
+    };
+
     // ==================== 自动执行 ====================
 
     const result = domExtractor({ viewportExpansion: -1, doHighlightElements: true });
     printResults(result);
 
-    // 自动检测：如果当前页面是美团商家版，启动订单监控
+    // 自动检测：如果当前页面是美团商家版，创建面板并启动监控
     var currentHost = window.location.hostname || '';
     var isMeituan = currentHost.indexOf('meituan') !== -1 || currentHost.indexOf('waimai') !== -1;
     if (isMeituan) {
-        console.log('');
-        console.log('%c🛵 检测到美团商家版，自动启动订单监控', 'color: #667eea; font-size: 14px; font-weight: bold;');
-        setTimeout(function() { monitorOrders(5000); }, 1000);
+        createPanel();
+        setTimeout(function() {
+            monitorOrders(5000);
+            updatePanelOrders();
+            // 每5秒更新面板订单列表（与监控同步）
+            setInterval(updatePanelOrders, 5000);
+        }, 1000);
     } else {
-        console.log('');
-        console.log('%c💡 非美团页面，如需订单监控请手动调用 monitorOrders()', 'color: #888;');
+        createPanel();
+        panelLog('💡 非美团页面，面板已加载', 'blue');
+        panelLog('💡 调用 monitorOrders() 或点击面板按钮启动监控', 'gray');
     }
 
 })();
