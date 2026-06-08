@@ -1342,6 +1342,11 @@
             } else if (o.status === 'cooked') {
                 statusTag = '<span class="waimai-tag waimai-tag-cooked">已出餐</span>';
                 detailHtml = '<div class="waimai-order-detail"><span class="done">✅ 已出餐</span></div>';
+            } else if (o.status === 'pending_accept') {
+                statusTag = '<span class="waimai-tag waimai-tag-other">待接单</span>';
+            } else if (o.riderStatus) {
+                // 有骑手状态但不是待出餐/已出餐（如配送中、用户已收餐等）
+                statusTag = '<span class="waimai-tag waimai-tag-cooked">' + o.statusText + '</span>';
             } else {
                 var label = o.statusText || o.status;
                 statusTag = '<span class="waimai-tag waimai-tag-other">' + label + '</span>';
