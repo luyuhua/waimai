@@ -624,9 +624,20 @@
             const cookTimeMatch = allText.match(/用时(\d{2}):(\d{2})/);
             data.cookTime = cookTimeMatch ? `${cookTimeMatch[1]}:${cookTimeMatch[2]}` : '';
 
-            // 建议出餐时长
+            // 建议出餐时长（正常单：如"10分00秒"；预订单为空）
             const suggestMatch = allText.match(/建议出餐时长\s*[\n\s]*(\d+)分(\d+)秒/);
             data.suggestedCookTime = suggestMatch ? `${suggestMatch[1]}分${suggestMatch[2]}秒` : '';
+            data.suggestedCookTimeSec = suggestMatch ? parseInt(suggestMatch[1]) * 60 + parseInt(suggestMatch[2]) : 0;
+
+            // 是否为预订单
+            data.isPreOrder = allText.includes('预订单');
+
+            // 建议出餐时间点（正常单为空；预订单如"06-09 11:43前"）
+            data.suggestedCookDeadline = '';
+            const deadlineMatch = allText.match(/建议出餐时间(\d{2}-\d{2}\s+\d{2}:\d{2})前/);
+            if (deadlineMatch) {
+                data.suggestedCookDeadline = deadlineMatch[1].trim();
+            }
 
             // 手机尾号
             const phoneMatch = allText.match(/手机尾号(\d{4})/);
@@ -982,6 +993,35 @@
                             }
                             var elapsedSec = suggestedSec > 0 ? suggestedSec - remainingSec : 0;
 
+                            // 预订单处理：建议出餐时间前10分钟视为虚拟下单时间
+                            var isPreOrder = allText.includes('预订单');
+                            var deadlineMatch = allText.match(/建议出餐时间(\d{2}-\d{2}\s+\d{2}:\d{2})前/);
+                            var deadlineDate = null;
+                            if (deadlineMatch) {
+                                // 解析 "06-09 11:43" 为 Date（当年）
+                                var parts = deadlineMatch[1].trim().match(/(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+                                if (parts) {
+                                    var now = new Date();
+                                    deadlineDate = new Date(now.getFullYear(), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]));
+                                }
+                            }
+
+                            // 计算已用时（预订单的倒计时可能还没开始）
+                            if (isPreOrder && deadlineDate && remainingSec === 0) {
+                                // 预订单：还没有开始倒计时，虚拟下单时间 = 建议出餐时间 - 10分钟
+                                // elapsedSec 此时为0（没有倒计时），需要按预订单逻辑计算
+                                var preOrderVirtualStart = new Date(deadlineDate.getTime() - 10 * 60 * 1000); // 建议-10分钟
+                                if (Date.now() < preOrderVirtualStart.getTime()) {
+                                    // 还没到虚拟下单时间，延迟到虚拟下单时间 + 策略延迟
+                                    elapsedSec = 0;
+                                    // 对于 after_order 策略，delay = 策略时间（因为没有已用时）
+                                    // 但实际应该等到接近建议出餐时间，所以强制用 before_deadline 逻辑
+                                } else {
+                                    // 已过虚拟下单时间，计算已用时
+                                    elapsedSec = Math.round((Date.now() - preOrderVirtualStart.getTime()) / 1000);
+                                }
+                            }
+
                             // 计算延迟
                             var delay;
                             var delayDesc;
@@ -989,14 +1029,28 @@
                                 delay = 1000;
                                 delayDesc = '立即出餐';
                             } else if (config.strategy === 'before_deadline') {
-                                delay = Math.max(1000, (remainingSec - config.beforeDeadlineSec) * 1000);
+                                if (remainingSec > 0) {
+                                    delay = Math.max(1000, (remainingSec - config.beforeDeadlineSec) * 1000);
+                                } else if (deadlineDate) {
+                                    // 预订单没有倒计时，用绝对时间算
+                                    delay = Math.max(1000, deadlineDate.getTime() - Date.now() - config.beforeDeadlineSec * 1000);
+                                } else {
+                                    delay = 1000; // 兜底：立即出餐
+                                }
                                 delayDesc = '建议出餐前' + config.beforeDeadlineSec + '秒';
                             } else {
-                                // after_order: 下单后N分钟，已用时需扣除
-                                var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
-                                var targetSec = Math.round(targetMin * 60);
-                                var remainDelay = Math.max(1000, (targetSec - elapsedSec) * 1000);
-                                delay = remainDelay;
+                                // after_order: 下单后N分钟
+                                if (isPreOrder && deadlineDate && remainingSec === 0) {
+                                    // 预订单无倒计时：直接算到建议出餐时间前N分钟
+                                    var preOrderVirtualStart = new Date(deadlineDate.getTime() - 10 * 60 * 1000);
+                                    var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
+                                    var virtualDelayMs = targetMin * 60 * 1000;
+                                    delay = Math.max(1000, preOrderVirtualStart.getTime() + virtualDelayMs - Date.now());
+                                } else {
+                                    var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
+                                    var targetSec = Math.round(targetMin * 60);
+                                    delay = Math.max(1000, (targetSec - elapsedSec) * 1000);
+                                }
                                 delayDesc = '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
                             }
 
@@ -1033,7 +1087,9 @@
                                 var minStr = Math.floor(delaySec / 60);
                                 var secStr = delaySec % 60;
                                 panelLog('⏰ 订单 ' + no + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）', 'orange');
-                                if (suggestedSec > 0) {
+                                if (isPreOrder && deadlineDate) {
+                                    panelLog('   📋 预订单 | 建议出餐 ' + (deadlineMatch ? deadlineMatch[1].trim() : '') + ' | 策略: ' + delayDesc, 'blue');
+                                } else if (suggestedSec > 0 && remainingSec > 0) {
                                     panelLog('   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'gray');
                                 }
                             })(orderNo);
@@ -1331,6 +1387,11 @@
             if (o.status === 'pending_cook') {
                 statusTag = '<span class="waimai-tag waimai-tag-pending">待出餐</span>';
                 pendingCount++;
+                // 预订单显示预约出餐时间
+                if (o.isPreOrder && o.suggestedCookDeadline) {
+                    statusTag = '<span class="waimai-tag waimai-tag-pending">预订单</span>';
+                    detailHtml = '<div class="waimai-order-detail">🕒 预约出餐 ' + o.suggestedCookDeadline + '</div>';
+                }
                 // 检查是否有定时器
                 var timer = window.__cookTimers && window.__cookTimers[o.orderNo];
                 if (timer) {
@@ -1338,7 +1399,7 @@
                     var min = Math.floor(remain / 60);
                     var sec = remain % 60;
                     detailHtml = '<div class="waimai-order-detail">⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐</div>';
-                } else if (o.cookRemainingTime) {
+                } else if (!detailHtml && o.cookRemainingTime) {
                     detailHtml = '<div class="waimai-order-detail">⏳ 剩余 <span class="timer">' + o.cookRemainingTime + '</span></div>';
                 }
             } else if (o.status === 'cooked') {
