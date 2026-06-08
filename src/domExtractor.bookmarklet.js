@@ -837,6 +837,9 @@
             window.__cookConfig.beforeDeadlineMinSec = Math.round(window.__cookConfig.beforeDeadlineSec * 0.67);
             delete window.__cookConfig.beforeDeadlineSec;
         }
+        if (window.__cookConfig.strategy === 'immediate') {
+            window.__cookConfig.strategy = 'manual';
+        }
         window.__cookTimers = window.__cookTimers || {};
 
         // 停止之前的监控
@@ -1040,9 +1043,9 @@
                             // 计算延迟
                             var delay;
                             var delayDesc;
-                            if (config.strategy === 'immediate') {
-                                delay = 1000;
-                                delayDesc = '立即出餐';
+                            // 手动出餐模式：不自动出餐，跳过定时器
+                            if (config.strategy === 'manual') {
+                                panelLog('🖐️ 订单 ' + orderNo + ' 手动出餐模式，等待人工操作', 'gray');
                             } else if (config.strategy === 'before_deadline') {
                                 var bdMinSec = Math.min(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
                                 var bdMaxSec = Math.max(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
@@ -1053,7 +1056,7 @@
                                     // 预订单没有倒计时，用绝对时间算
                                     delay = Math.max(1000, deadlineDate.getTime() - Date.now() - bdSec * 1000);
                                 } else {
-                                    delay = 1000; // 兜底：立即出餐
+                                    delay = 1000; // 兜底：无倒计时也无法推算，立即出餐
                                 }
                                 delayDesc = '建议出餐前' + config.beforeDeadlineMinSec + '~' + config.beforeDeadlineMaxSec + '秒';
                             } else {
@@ -1073,6 +1076,8 @@
                                 delayDesc = '下单后' + config.afterOrderMinSec + '~' + config.afterOrderMaxSec + '秒';
                             }
 
+                            // 手动出餐模式不需要设置定时器
+                            if (config.strategy !== 'manual') {
                             var targetTime = new Date(Date.now() + delay);
                             var delaySec = Math.round(delay / 1000);
 
@@ -1112,6 +1117,7 @@
                                     panelLog('   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'gray');
                                 }
                             })(orderNo);
+                            } // end if (strategy !== 'manual')
                         }
                     }
                 }
@@ -1141,7 +1147,7 @@
         }
 
         var config = window.__cookConfig;
-        var strategyDesc = config.strategy === 'immediate' ? '立即出餐' :
+        var strategyDesc = config.strategy === 'manual' ? '手动出餐' :
                           config.strategy === 'before_deadline' ? '建议出餐前' + config.beforeDeadlineMinSec + '~' + config.beforeDeadlineMaxSec + '秒' :
                           '下单后' + config.afterOrderMinSec + '~' + config.afterOrderMaxSec + '秒';
         panelLog('📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查', 'blue');
@@ -1318,7 +1324,7 @@
             '  <div class="waimai-strategy">',
             '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="180" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="240" min="0" max="1800" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
-            '    <label><input type="radio" name="waimai-strategy" value="immediate"> 立即出餐</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="manual"> 手动出餐</label>',
             '  </div>',
             '  <div class="waimai-btn-row">',
             '    <button class="waimai-btn waimai-btn-start" id="waimai-btn-start" onclick="window.startMonitorFromPanel()">开始监控</button>',
@@ -1343,7 +1349,7 @@
             r.addEventListener('change', function() {
                 window.__cookConfig = window.__cookConfig || { strategy: 'after_order', afterOrderMinSec: 180, afterOrderMaxSec: 240, beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180 };
                 window.__cookConfig.strategy = this.value;
-                panelLog('🔄 策略已切换为: ' + (this.value === 'immediate' ? '立即出餐' : this.value === 'before_deadline' ? '建议出餐前' : '下单后'), 'blue');
+                panelLog('🔄 策略已切换为: ' + (this.value === 'manual' ? '手动出餐' : this.value === 'before_deadline' ? '建议出餐前' : '下单后'), 'blue');
             });
         });
         var afterMinInput = document.getElementById('waimai-after-min-sec');
@@ -1353,7 +1359,7 @@
         function logConfigChange() {
             var c = window.__cookConfig;
             if (!c) return;
-            var desc = c.strategy === 'immediate' ? '立即出餐' :
+            var desc = c.strategy === 'manual' ? '手动出餐' :
                        c.strategy === 'before_deadline' ? '建议出餐前' + c.beforeDeadlineMinSec + '~' + c.beforeDeadlineMaxSec + '秒' :
                        '下单后' + c.afterOrderMinSec + '~' + c.afterOrderMaxSec + '秒';
             panelLog('⚙️ 出餐配置已更新: ' + desc, 'blue');
@@ -1502,6 +1508,9 @@
             config.beforeDeadlineMaxSec = config.beforeDeadlineSec;
             config.beforeDeadlineMinSec = Math.round(config.beforeDeadlineSec * 0.67);
             delete config.beforeDeadlineSec;
+        }
+        if (config.strategy === 'immediate') {
+            config.strategy = 'manual';
         }
         var afterMinEl = document.getElementById('waimai-after-min-sec');
         var afterMaxEl = document.getElementById('waimai-after-max-sec');

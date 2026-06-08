@@ -261,7 +261,7 @@ because it violates the following Content Security Policy directive: "script-src
 |------|------|----------|
 | `after_order`（默认） | `afterOrderMinSec: 180, afterOrderMaxSec: 240` | delay = 随机(180~240秒) - 已用时 |
 | `before_deadline` | `beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180` | delay = 剩余时间 - 随机(120~180秒) |
-| `immediate` | 无 | delay = 1秒 |
+| `manual` | 无 | 不自动出餐，等待人工操作 |
 
 时间计算：
 - 正常单：已用时 = 建议出餐时长（秒） - 剩余时间（秒）
