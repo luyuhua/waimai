@@ -819,6 +819,23 @@
             catch (e) { return null; }
         }
 
+        // 解析时间字符串为秒数（支持 "MM:SS" 和 "HH:MM:SS"）
+        function parseTimeToSeconds(timeStr) {
+            if (!timeStr) return 0;
+            var parts = timeStr.split(':').map(Number);
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            return 0;
+        }
+
+        // 解析建议出餐时长为秒数（如 "10分00秒" → 600）
+        function parseSuggestedTimeToSeconds(timeStr) {
+            if (!timeStr) return 0;
+            var minMatch = timeStr.match(/(\d+)分/);
+            var secMatch = timeStr.match(/(\d+)秒/);
+            return (minMatch ? parseInt(minMatch[1]) * 60 : 0) + (secMatch ? parseInt(secMatch[1]) : 0);
+        }
+
         function checkOrders() {
             window.__monitorCheckCount++;
             var doc = getIframeDoc();
@@ -873,10 +890,17 @@
                 var customerMatch = allText.match(/([^\s]{1,4}(?:先生|女士))/);
                 var indexMatch = allText.match(/#(\d+)/);
                 var isPendingCook = currentStatus === 'pending_cook';
+                var cookLabel = { pending_cook: '待出餐', cooked: '已出餐', pending_accept: '待接单', delivered: '已送达', cancelled: '已取消' };
+
+                // 状态变化：如果不再是待出餐，取消定时出餐
+                if (statusChanged && !isPendingCook && window.__cookTimers[orderNo]) {
+                    clearTimeout(window.__cookTimers[orderNo].timerId);
+                    delete window.__cookTimers[orderNo];
+                    console.log('%c⏹️ 订单 ' + orderNo + ' 状态变化为' + (cookLabel[currentStatus] || currentStatus) + '，取消定时出餐', 'color: #888;');
+                }
 
                 // 新订单 或 状态变为"待出餐"
                 if (isNew || (statusChanged && isPendingCook)) {
-                    var cookLabel = { pending_cook: '待出餐', cooked: '已出餐', pending_accept: '待接单', delivered: '已送达', cancelled: '已取消' };
                     var statusLabel = cookLabel[currentStatus] || currentStatus;
                     var label = riderStatus ? statusLabel + ' | ' + riderStatus : statusLabel;
                     var reason = isNew ? '🆕 新订单' : '🔄 状态变化 → ' + label;
@@ -933,20 +957,85 @@
                         console.log('%c📋 出餐按钮结构：', 'color: #f59e0b; font-weight: bold;');
                         console.log(JSON.stringify(btnInfo, null, 2));
 
-                        // 自动出餐
-                        if (window.__autoCookEnabled) {
-                            for (var j = 0; j < buttons.length; j++) {
-                                var btnText = buttons[j].innerText.trim();
-                                if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
-                                    setTimeout((function(btn, no) {
-                                        return function() {
-                                            btn.click();
-                                            console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
-                                        };
-                                    })(buttons[j], orderNo), 1000);
+                        // 自动出餐定时器
+                        if (!window.__cookTimers[orderNo]) {
+                            var config = window.__cookConfig;
+                            // 提取建议出餐时长和剩余时间
+                            var suggestMatch = allText.match(/建议出餐时长\s*[\n\s]*(\d+)分(\d+)秒/);
+                            var suggestedSec = suggestMatch ? parseInt(suggestMatch[1]) * 60 + parseInt(suggestMatch[2]) : 0;
+                            var remainingSec = 0;
+                            var timeTitleEls2 = card.querySelectorAll('div[class*="time-title"]');
+                            for (var tIdx = 0; tIdx < timeTitleEls2.length; tIdx++) {
+                                if (timeTitleEls2[tIdx].innerText.trim() === '剩余') {
+                                    var pParent = timeTitleEls2[tIdx].parentElement;
+                                    if (pParent) {
+                                        var pText = pParent.innerText.trim();
+                                        var pMatch = pText.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                                        if (pMatch) remainingSec = parseTimeToSeconds(pMatch[1]);
+                                    }
                                     break;
                                 }
                             }
+                            var elapsedSec = suggestedSec > 0 ? suggestedSec - remainingSec : 0;
+
+                            // 计算延迟
+                            var delay;
+                            var delayDesc;
+                            if (config.strategy === 'immediate') {
+                                delay = 1000;
+                                delayDesc = '立即出餐';
+                            } else if (config.strategy === 'before_deadline') {
+                                delay = Math.max(1000, (remainingSec - config.beforeDeadlineSec) * 1000);
+                                delayDesc = '建议出餐前' + config.beforeDeadlineSec + '秒';
+                            } else {
+                                // after_order: 下单后N分钟，已用时需扣除
+                                var targetMin = config.minDelayMin + Math.random() * (config.maxDelayMin - config.minDelayMin);
+                                var targetSec = Math.round(targetMin * 60);
+                                var remainDelay = Math.max(1000, (targetSec - elapsedSec) * 1000);
+                                delay = remainDelay;
+                                delayDesc = '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
+                            }
+
+                            var targetTime = new Date(Date.now() + delay);
+                            var delaySec = Math.round(delay / 1000);
+
+                            // 设置定时器（闭包捕获 orderNo）
+                            (function(no) {
+                                var timerId = setTimeout(function() {
+                                    // 重新查找订单卡片（DOM 可能已变）
+                                    var doc2 = getIframeDoc();
+                                    if (!doc2) return;
+                                    var cards2 = doc2.querySelectorAll('[class*="order-card"]');
+                                    for (var k = 0; k < cards2.length; k++) {
+                                        var t2 = cards2[k].innerText || '';
+                                        if (t2.includes(no)) {
+                                            var btns2 = getCardButtons(cards2[k]);
+                                            for (var b = 0; b < btns2.length; b++) {
+                                                var txt2 = btns2[b].innerText.trim();
+                                                if (txt2 === '出餐完成' || txt2 === '出餐' || txt2 === '确认出餐') {
+                                                    btns2[b].click();
+                                                    console.log('%c✅ 已自动出餐: 订单 ' + no, 'color: green; font-size: 14px; font-weight: bold;');
+                                                    break;
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    delete window.__cookTimers[no];
+                                }, delay);
+
+                                window.__cookTimers[no] = { timerId: timerId, targetTime: targetTime, delay: delay };
+
+                                var minStr = Math.floor(delaySec / 60);
+                                var secStr = delaySec % 60;
+                                console.log(
+                                    '%c⏰ 订单 ' + no + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）策略: ' + delayDesc,
+                                    'color: #2196F3; font-weight: bold;'
+                                );
+                                if (suggestedSec > 0) {
+                                    console.log('%c   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'color: #888;');
+                                }
+                            })(orderNo);
                         }
                     }
                 }
@@ -959,7 +1048,9 @@
                     if (card.innerText.includes('待出餐')) pendingCount++;
                 });
                 var emoji = pendingCount > 0 ? '🔴' : '✅';
-                console.log('%c' + emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单', 'color: #888;');
+                var timerCount = Object.keys(window.__cookTimers).length;
+                var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
+                console.log('%c' + emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'color: #888;');
             }
         }
 
@@ -973,14 +1064,53 @@
             });
         }
 
-        console.log('%c📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查 | 自动出餐: ' + (autoCook ? '✅ 开启' : '❌ 关闭'), 'color: #667eea; font-size: 14px; font-weight: bold;');
-        console.log('%c💡 设置 window.__autoCookEnabled = true 开启自动出餐', 'color: #f59e0b;');
+        var config = window.__cookConfig;
+        var strategyDesc = config.strategy === 'immediate' ? '立即出餐' :
+                          config.strategy === 'before_deadline' ? '建议出餐前' + config.beforeDeadlineSec + '秒' :
+                          '下单后' + config.minDelayMin + '~' + config.maxDelayMin + '分钟';
+        console.log('%c📋 订单监控已启动 | 已知 ' + window.__knownOrders.size + ' 单 | 每 ' + (intervalMs/1000) + '秒检查', 'color: #667eea; font-size: 14px; font-weight: bold;');
+        console.log('%c⏰ 出餐策略: ' + strategyDesc, 'color: #2196F3; font-weight: bold;');
         console.log('%c💡 调用 window.stopOrderMonitor() 停止监控', 'color: #888;');
+        console.log('%c💡 window.__cookConfig 查看配置 | window.showCookTimers() 查看待执行出餐', 'color: #888;');
 
         window.__orderMonitorTimer = setInterval(checkOrders, intervalMs);
         checkOrders(); // 立即检查一次
 
         return window.__knownOrders.size;
+    };
+
+    /**
+     * 查看所有定时出餐任务
+     */
+    window.showCookTimers = function() {
+        var timers = window.__cookTimers || {};
+        var keys = Object.keys(timers);
+        if (keys.length === 0) {
+            console.log('%c📭 没有待执行的出餐任务', 'color: #888;');
+            return;
+        }
+        console.log('%c⏰ 待执行出餐任务（' + keys.length + ' 单）：', 'color: #2196F3; font-weight: bold;');
+        keys.forEach(function(no) {
+            var t = timers[no];
+            var remainSec = Math.max(0, Math.round((t.targetTime.getTime() - Date.now()) / 1000));
+            var min = Math.floor(remainSec / 60);
+            var sec = remainSec % 60;
+            console.log('  订单 ' + no + ' → ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐（目标时间 ' + t.targetTime.toLocaleTimeString() + '）');
+        });
+    };
+
+    /**
+     * 取消某个订单的定时出餐
+     */
+    window.cancelCookTimer = function(orderNo) {
+        var timer = window.__cookTimers && window.__cookTimers[orderNo];
+        if (timer) {
+            clearTimeout(timer.timerId);
+            delete window.__cookTimers[orderNo];
+            console.log('%c⏹️ 已取消订单 ' + orderNo + ' 的定时出餐', 'color: #888;');
+        } else {
+            console.log('%c⚠️ 订单 ' + orderNo + ' 没有待执行的出餐任务', 'color: #f59e0b;');
+        }
     };
 
     /**
@@ -990,8 +1120,15 @@
         if (window.__orderMonitorTimer) {
             clearInterval(window.__orderMonitorTimer);
             window.__orderMonitorTimer = null;
-            console.log('%c⏹️ 订单监控已停止', 'color: #888; font-size: 14px;');
         }
+        // 清除所有定时出餐任务
+        if (window.__cookTimers) {
+            Object.keys(window.__cookTimers).forEach(function(no) {
+                clearTimeout(window.__cookTimers[no].timerId);
+            });
+            window.__cookTimers = {};
+        }
+        console.log('%c⏹️ 订单监控已停止，所有定时出餐任务已取消', 'color: #888; font-size: 14px;');
     };
 
     // ==================== 自动执行 ====================
@@ -1005,7 +1142,7 @@
     if (isMeituan) {
         console.log('');
         console.log('%c🛵 检测到美团商家版，自动启动订单监控', 'color: #667eea; font-size: 14px; font-weight: bold;');
-        setTimeout(function() { monitorOrders(5000, false); }, 1000);
+        setTimeout(function() { monitorOrders(5000); }, 1000);
     } else {
         console.log('');
         console.log('%c💡 非美团页面，如需订单监控请手动调用 monitorOrders()', 'color: #888;');
