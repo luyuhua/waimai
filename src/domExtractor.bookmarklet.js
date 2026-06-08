@@ -799,16 +799,23 @@
      * @param {number} intervalMs - 轮询间隔毫秒，默认 5000
      * @param {boolean} autoCook - 是否自动点击出餐按钮，默认 false
      */
-    window.monitorOrders = function(intervalMs, autoCook) {
+    window.monitorOrders = function(intervalMs) {
         intervalMs = intervalMs || 5000;
-        autoCook = autoCook || false;
+
+        // 出餐配置（默认：下单后2~3分钟随机出餐）
+        window.__cookConfig = window.__cookConfig || {
+            strategy: 'after_order',
+            minDelayMin: 2,
+            maxDelayMin: 3,
+            beforeDeadlineSec: 30
+        };
+        window.__cookTimers = window.__cookTimers || {};
 
         // 停止之前的监控
         if (window.__orderMonitorTimer) {
             clearInterval(window.__orderMonitorTimer);
         }
         window.__knownOrders = window.__knownOrders || new Set();
-        window.__autoCookEnabled = autoCook;
         window.__monitorCheckCount = 0;
 
         function getIframeDoc() {
@@ -1040,7 +1047,7 @@
                     if (card.innerText.includes('待出餐')) pendingCount++;
                 });
                 var emoji = pendingCount > 0 ? '🔴' : '✅';
-                var timerCount = Object.keys(window.__cookTimers).length;
+                var timerCount = window.__cookTimers ? Object.keys(window.__cookTimers).length : 0;
                 var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
                 panelLog(emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray');
             }
