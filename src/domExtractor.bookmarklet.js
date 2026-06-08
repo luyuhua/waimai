@@ -1309,7 +1309,7 @@
         var badge = document.getElementById('waimai-badge');
 
         if (!orders || orders.length === 0) {
-            listEl.innerHTML = '<div style="color:#666;font-size:12px;">暂无订单数据</div>';
+            listEl.innerHTML = '<div style="color:#666;font-size:12px;">暂无订单数据（extractOrders返回: ' + (orders === null ? 'null' : orders.length + '条') + '）</div>';
             if (badge) badge.textContent = '0';
             return;
         }
