@@ -1059,6 +1059,8 @@
 })();
 
 /**
+
+/**
  * @file 美团外卖商家版 — 混合模式监控脚本 (V2)
  * @description API 数据优先 + DOM 兜底 + 本地数据层 + 独立出餐计时
  *              架构：orderApi（拦截/请求） → orderStore（存储） → cookEngine（计时） → DOM（操作）
@@ -1079,14 +1081,6 @@
   if (!window.__WM_V2) window.__WM_V2 = {};
   const V2 = window.__WM_V2;
 
-  const deps = ['ApiInterceptor', 'OrderStore', 'CookEngine', 'TimeUtils', 'ORDER_STATUS'];
-  const missing = deps.filter(d => !V2[d]);
-  if (missing.length > 0) {
-    console.error('[WM-V2] 缺少依赖模块:', missing.join(', '));
-    return;
-  }
-
-  // ==================== 配置 ====================
   const MONITOR_CONFIG = {
     domPollInterval: 5000,
     apiRefreshInterval: 30000,
@@ -1160,6 +1154,7 @@
       this.cookEngine.start();
       this.log('🔥 出餐引擎已启动');
 
+      this.createPanel();
       this._printStats();
       return this;
     }
@@ -1178,6 +1173,7 @@
     refresh() {
       this._domPoll();
       this.log('🔄 手动刷新完成');
+      this.createPanel();
       this._printStats();
       return this;
     }
@@ -1438,7 +1434,8 @@
       const now = Date.now();
       if (!this._lastPrintTime || now - this._lastPrintTime > 30000) {
         this._lastPrintTime = now;
-        this._printStats();
+        this.createPanel();
+      this._printStats();
       }
     }
 
@@ -1901,7 +1898,7 @@
     return window.__wmV2Instance ? window.__wmV2Instance.getStatus() : 'V2 监控未启动';
   };
 
-  console.log('[WM-V2] ✅ monitorV2 模块已加载（v2.2 - 不切换Tab + DOM引用刷新清理）');
+  console.log('[WM-V2] ✅ monitorV2 模块已加载（v2.3 - 含控制面板）');
   console.log('[WM-V2] 使用方法:');
   console.log('  __WM_START()                                          — 启动监控');
   console.log('  __WM_START({ cook: { strategy: "beforeCook" } })     — 使用出餐前模式');

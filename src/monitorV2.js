@@ -100,6 +100,7 @@
       this.cookEngine.start();
       this.log('🔥 出餐引擎已启动');
 
+      this.createPanel();
       this._printStats();
       return this;
     }
@@ -118,6 +119,7 @@
     refresh() {
       this._domPoll();
       this.log('🔄 手动刷新完成');
+      this.createPanel();
       this._printStats();
       return this;
     }
@@ -378,7 +380,8 @@
       const now = Date.now();
       if (!this._lastPrintTime || now - this._lastPrintTime > 30000) {
         this._lastPrintTime = now;
-        this._printStats();
+        this.createPanel();
+      this._printStats();
       }
     }
 
