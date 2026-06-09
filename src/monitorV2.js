@@ -806,6 +806,7 @@
       if (beforeMaxEl) beforeMaxEl.value = cfg.cookBeforeYs;
       if (useSuggestedEl) useSuggestedEl.checked = cfg.useSuggestedCookTime;
       if (virtualEl) virtualEl.value = cfg.virtualOrderOffsetSeconds;
+      var radios = document.querySelectorAll('input[name="waimai-strategy"]');
       radios.forEach(function(r) { r.checked = (r.value === cfg.strategy); });
       var afterParams = document.getElementById('waimai-after-params');
       var beforeParams = document.getElementById('waimai-before-params');

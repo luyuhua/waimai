@@ -1079,7 +1079,7 @@
   'use strict';
 
   if (!window.__WM_V2) window.__WM_V2 = {};
-  const V2 = window.__WM_V2;
+  var V2 = window.__WM_V2;
 
   const MONITOR_CONFIG = {
     domPollInterval: 5000,
@@ -1860,6 +1860,7 @@
       if (beforeMaxEl) beforeMaxEl.value = cfg.cookBeforeYs;
       if (useSuggestedEl) useSuggestedEl.checked = cfg.useSuggestedCookTime;
       if (virtualEl) virtualEl.value = cfg.virtualOrderOffsetSeconds;
+      var radios = document.querySelectorAll('input[name="waimai-strategy"]');
       radios.forEach(function(r) { r.checked = (r.value === cfg.strategy); });
       var afterParams = document.getElementById('waimai-after-params');
       var beforeParams = document.getElementById('waimai-before-params');
@@ -1883,7 +1884,6 @@
   }
   // ==================== 导出 & 快捷函数 ====================
   V2.MonitorV2 = MonitorV2;
-  V2.MONITOR_CONFIG = MONITOR_CONFIG;
 
   window.__WM_START = function (config) {
     if (window.__wmV2Instance) { window.__wmV2Instance.stop(); }
