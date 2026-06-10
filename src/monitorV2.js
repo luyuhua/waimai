@@ -697,7 +697,7 @@
         var min = Math.floor(remaining / 60);
         var sec = remaining % 60;
         detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.deadline + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
-          (timerMatch.windowStart ? ' <span style="font-size:10px;color:#888">窗口 ' + fmtTime(timerMatch.windowStart) + '~' + fmtTime(timerMatch.deadline) + '</span>' : '') +
+          (timerMatch.windowStart ? ' <span style="font-size:10px;color:#fb923c">⏱ ' + fmtTime(timerMatch.windowStart) + '</span>' : '') +
           '</div>';
       } else if (isPending && o.suggestedCookSeconds > 0) {
         detailHtml = '<div class="waimai-order-detail">⏳ 建议 ' + o.suggestedCookTime + '</div>';
@@ -716,8 +716,8 @@
         (o.deliverTime ? ' | 送达: ' + o.deliverTime : '') +
         (o.suggestedCookTime ? ' | 建议出餐: ' + o.suggestedCookTime : '') +
         (o.suggestedCookDeadline ? ' | 预约出餐: ' + o.suggestedCookDeadline : '') +
-        (timerMatch ? ' | 出餐窗口: ' + fmtTime(timerMatch.windowStart) + ' ~ ' + fmtTime(timerMatch.deadline) : '') +
-        (o.cookTime ? ' | 出餐用时: ' + o.cookTime : '') +
+        (timerMatch ? ' | 自动出餐时间: ' + fmtTime(timerMatch.windowStart) : '') +
+        ((o.status === 'cooked' || o.status === 'delivered') && o.cookTime ? ' | 出餐用时: ' + o.cookTime : '') +
         (o.phoneTail ? ' | 尾号: ' + o.phoneTail : '') +
         (o.riderName ? ' | 骑手: ' + o.riderName : '') +
         (o.deliveryType ? ' | 配送: ' + o.deliveryType : '') +
