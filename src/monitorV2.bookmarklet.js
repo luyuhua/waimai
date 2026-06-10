@@ -755,9 +755,9 @@
  *
  *   策略 B — "出餐前 XX秒 ~ YY秒"：
  *     即时单：建议出餐时间 - cookBeforeYs ~ 建议出餐时间 - cookAfterXs
- *     预订单：送达时间 - cookBeforeYs ~ 送达时间 - cookAfterXs
+ *     预订单：建议出餐时间 - cookBeforeYs ~ 建议出餐时间 - cookAfterXs
  *
- *   预订单的虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
+ *   预订单的虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
  *     默认 virtualOrderOffsetSeconds = 1200 (20分钟)
  *     (老版本为 600 = 10分钟，现调整为 1200 = 20分钟)
  *
@@ -824,7 +824,7 @@
      *
      * 'beforeCook'  — "建议出餐前 XX秒 ~ YY秒出餐"
      *     即时单：建议出餐截止 - cookBeforeYs 起，- cookAfterXs 止
-     *     预订单：送达时间    - cookBeforeYs 起，- cookAfterXs 止
+     *     预订单：建议出餐截止 - cookBeforeYs 起，- cookAfterXs 止
      *
      * 'manual' — 不自动出餐，仅提醒
      */
@@ -832,9 +832,9 @@
 
     // ---- 策略 A: "下单后" 模式的参数 ----
     /** 下单后最少等待秒数（窗口起点） */
-    cookAfterXs: 60,          // 下单后 60 秒开始可以出餐
+    cookAfterXs: 240,          // 下单后 240 秒开始可以出餐
     /** 下单后最晚等待秒数（窗口终点，即建议出餐时间） */
-    cookBeforeYs: 600,        // 下单后 600 秒（10分钟）必须出餐
+    cookBeforeYs: 300,        // 下单后 300 秒（5分钟）必须出餐
 
     // ---- 策略 B: "出餐前" 模式的参数 ----
     /** 出餐截止前 XX 秒开始出餐（窗口起点） */
@@ -845,7 +845,7 @@
     // ---- 预订单参数 ----
     /**
      * 预订单虚拟下单时间偏移（秒）：
-     *   虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
+     *   虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
      *   老版本默认 600 (10分钟)，现调整为 1200 (20分钟)
      */
     virtualOrderOffsetSeconds: 1200, // 20分钟
@@ -881,7 +881,7 @@
       console.log('[WM-V2] 出餐引擎已启动');
       console.log(`[WM-V2] 策略: ${this.config.strategy === 'afterOrder' ? '下单后模式' : this.config.strategy === 'beforeCook' ? '出餐前模式' : '手动模式'}`);
       console.log(`[WM-V2] 即时单: 下单后 ${this.config.cookAfterXs}s ~ ${this.config.cookBeforeYs}s`);
-      console.log(`[WM-V2] 预订单: 虚拟下单时间 = 送达时间 - ${this.config.virtualOrderOffsetSeconds}s (${this.config.virtualOrderOffsetSeconds / 60}分钟)`);
+      console.log(`[WM-V2] 预订单: 虚拟下单时间 = 建议出餐时间 - ${this.config.virtualOrderOffsetSeconds}s (${this.config.virtualOrderOffsetSeconds / 60}分钟)`);
       this._checkAll();
       this._intervalId = setInterval(() => this._checkAll(), this.config.checkInterval);
       return this;
@@ -964,10 +964,10 @@
       let baseTime; // "下单时间"（即时单=真实下单时间，预订单=虚拟下单时间）
 
       if (isPreOrder) {
-        // 预订单：虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
-        const deliverTime = order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now);
-        if (!deliverTime) return null;
-        baseTime = deliverTime - this.config.virtualOrderOffsetSeconds * 1000;
+        // 预订单：虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
+        const deadline = TimeUtils.parseOrderTime(order.suggestedCookDeadline, now) || order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now);
+        if (!deadline) return null;
+        baseTime = deadline - this.config.virtualOrderOffsetSeconds * 1000;
       } else {
         // 即时单：真实下单时间
         baseTime = order.orderTimestamp || TimeUtils.parseOrderTime(order.orderTime, now);
@@ -1103,8 +1103,8 @@
 
     cook: {
       strategy: 'afterOrder',
-      cookAfterXs: 60,
-      cookBeforeYs: 600,
+      cookAfterXs: 240,
+      cookBeforeYs: 300,
       virtualOrderOffsetSeconds: 1200,
       minWaitSeconds: 10,
       checkInterval: 5000,
@@ -1138,7 +1138,7 @@
       this.log('🚀 V2 混合模式监控已启动');
       this.log(`📊 策略: ${this.config.cook.strategy === 'afterOrder' ? '下单后模式' : this.config.cook.strategy === 'beforeCook' ? '出餐前模式' : '手动模式'}`);
       this.log(`⏰ 即时单: 下单后 ${this.config.cook.cookAfterXs}s ~ ${this.config.cook.cookBeforeYs}s`);
-      this.log(`📋 预订单: 虚拟下单 = 送达时间 - ${this.config.cook.virtualOrderOffsetSeconds / 60}分钟`);
+      this.log(`📋 预订单: 虚拟下单 = 建议出餐时间 - ${this.config.cook.virtualOrderOffsetSeconds / 60}分钟`);
       this.log(`🚫 不会自动切换 Tab，只操作当前页面可见的订单`);
 
       // 清除 localStorage 中失效的 DOM 引用
@@ -1590,13 +1590,13 @@
       '<div class="waimai-section">',
       '  <div class="waimai-section-title"><span>⏰ 出餐策略</span></div>',
       '  <div class="waimai-strategy">',
-      '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="180" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="240" min="0" max="1800" style="width:50px"> 秒</label>',
+      '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="240" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="300" min="0" max="1800" style="width:50px"> 秒</label>',
       '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
       '    <label><input type="radio" name="waimai-strategy" value="manual"> 手动出餐</label>',
       '    <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">',
       '      <label style="font-size:11px;color:#888;margin-top:2px;"><input type="checkbox" id="waimai-show-advanced"> 高级选项</label>',
       '      <div id="waimai-advanced-params" style="display:none;margin-left:22px;margin-top:4px;">',
-      '        <label style="font-size:11px;color:#fb923c;">📋 预订单虚拟下单 = 送达前 <input type="number" id="waimai-virtual-offset" value="1200" min="60" max="3600" style="width:55px"> 秒</label>',
+      '        <label style="font-size:11px;color:#fb923c;">📋 预订单虚拟下单 = 建议出餐前 <input type="number" id="waimai-virtual-offset" value="1200" min="60" max="3600" style="width:55px"> 秒</label>',
       '      </div>',
       '    </div>',
       '  </div>',
@@ -1760,8 +1760,8 @@
 
     return {
       strategy: this._mapStrategyToV2(panelStrategy),
-      cookAfterXs: parseInt(afterMinEl ? afterMinEl.value : 180) || 180,
-      cookBeforeYs: parseInt(afterMaxEl ? afterMaxEl.value : 240) || 240,
+      cookAfterXs: parseInt(afterMinEl ? afterMinEl.value : 240) || 240,
+      cookBeforeYs: parseInt(afterMaxEl ? afterMaxEl.value : 300) || 300,
       cookBeforeYsBeforeCook: parseInt(beforeMinEl ? beforeMinEl.value : 120) || 120,
       cookAfterXsBeforeCook: parseInt(beforeMaxEl ? beforeMaxEl.value : 180) || 180,
       virtualOrderOffsetSeconds: parseInt(virtualEl ? virtualEl.value : 1200) || 1200,

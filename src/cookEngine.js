@@ -8,9 +8,9 @@
  *
  *   策略 B — "出餐前 XX秒 ~ YY秒"：
  *     即时单：建议出餐时间 - cookBeforeYs ~ 建议出餐时间 - cookAfterXs
- *     预订单：送达时间 - cookBeforeYs ~ 送达时间 - cookAfterXs
+ *     预订单：建议出餐时间 - cookBeforeYs ~ 建议出餐时间 - cookAfterXs
  *
- *   预订单的虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
+ *   预订单的虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
  *     默认 virtualOrderOffsetSeconds = 1200 (20分钟)
  *     (老版本为 600 = 10分钟，现调整为 1200 = 20分钟)
  *
@@ -77,7 +77,7 @@
      *
      * 'beforeCook'  — "建议出餐前 XX秒 ~ YY秒出餐"
      *     即时单：建议出餐截止 - cookBeforeYs 起，- cookAfterXs 止
-     *     预订单：送达时间    - cookBeforeYs 起，- cookAfterXs 止
+     *     预订单：建议出餐截止 - cookBeforeYs 起，- cookAfterXs 止
      *
      * 'manual' — 不自动出餐，仅提醒
      */
@@ -85,9 +85,9 @@
 
     // ---- 策略 A: "下单后" 模式的参数 ----
     /** 下单后最少等待秒数（窗口起点） */
-    cookAfterXs: 60,          // 下单后 60 秒开始可以出餐
+    cookAfterXs: 240,          // 下单后 240 秒开始可以出餐
     /** 下单后最晚等待秒数（窗口终点，即建议出餐时间） */
-    cookBeforeYs: 600,        // 下单后 600 秒（10分钟）必须出餐
+    cookBeforeYs: 300,        // 下单后 300 秒（5分钟）必须出餐
 
     // ---- 策略 B: "出餐前" 模式的参数 ----
     /** 出餐截止前 XX 秒开始出餐（窗口起点） */
@@ -98,7 +98,7 @@
     // ---- 预订单参数 ----
     /**
      * 预订单虚拟下单时间偏移（秒）：
-     *   虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
+     *   虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
      *   老版本默认 600 (10分钟)，现调整为 1200 (20分钟)
      */
     virtualOrderOffsetSeconds: 1200, // 20分钟
@@ -134,7 +134,7 @@
       console.log('[WM-V2] 出餐引擎已启动');
       console.log(`[WM-V2] 策略: ${this.config.strategy === 'afterOrder' ? '下单后模式' : this.config.strategy === 'beforeCook' ? '出餐前模式' : '手动模式'}`);
       console.log(`[WM-V2] 即时单: 下单后 ${this.config.cookAfterXs}s ~ ${this.config.cookBeforeYs}s`);
-      console.log(`[WM-V2] 预订单: 虚拟下单时间 = 送达时间 - ${this.config.virtualOrderOffsetSeconds}s (${this.config.virtualOrderOffsetSeconds / 60}分钟)`);
+      console.log(`[WM-V2] 预订单: 虚拟下单时间 = 建议出餐时间 - ${this.config.virtualOrderOffsetSeconds}s (${this.config.virtualOrderOffsetSeconds / 60}分钟)`);
       this._checkAll();
       this._intervalId = setInterval(() => this._checkAll(), this.config.checkInterval);
       return this;
@@ -217,10 +217,10 @@
       let baseTime; // "下单时间"（即时单=真实下单时间，预订单=虚拟下单时间）
 
       if (isPreOrder) {
-        // 预订单：虚拟下单时间 = 送达时间 - virtualOrderOffsetSeconds
-        const deliverTime = order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now);
-        if (!deliverTime) return null;
-        baseTime = deliverTime - this.config.virtualOrderOffsetSeconds * 1000;
+        // 预订单：虚拟下单时间 = 建议出餐时间 - virtualOrderOffsetSeconds
+        const deadline = TimeUtils.parseOrderTime(order.suggestedCookDeadline, now) || order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now);
+        if (!deadline) return null;
+        baseTime = deadline - this.config.virtualOrderOffsetSeconds * 1000;
       } else {
         // 即时单：真实下单时间
         baseTime = order.orderTimestamp || TimeUtils.parseOrderTime(order.orderTime, now);
