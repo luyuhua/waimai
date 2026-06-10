@@ -593,7 +593,8 @@
       return;
     }
 
-    // 去重：同一 orderNo 只显示一条，DOM 优先
+    // 去重 + 数据合并：同一 orderNo 只显示一条。
+    // 策略：优先保留有 customerName 的（DOM），合并 API 的状态信息
     var seen = {};
     var deduped = [];
     for (var i = 0; i < allOrders.length; i++) {
@@ -602,16 +603,44 @@
         seen[o.orderNo] = o;
         deduped.push(o);
       } else {
-        // DOM 来源的覆盖 API 来源的
         var existing = seen[o.orderNo];
-        if (o.source === 'dom' && existing.source === 'api') {
+        // 合并：用有 customerName 的覆盖没有的
+        if (o.customerName && !existing.customerName) {
           seen[o.orderNo] = o;
           deduped[deduped.indexOf(existing)] = o;
-        } else if (o.source === 'dom') {
+        } else if (o.source === 'dom' && existing.source !== 'dom') {
           seen[o.orderNo] = o;
           deduped[deduped.indexOf(existing)] = o;
         }
       }
+    }
+
+    // 二次去重：按 orderIndex 合并 API 和 DOM 可能 orderNo 不同但实际同一订单的情况
+    var byIndex = {};
+    var merged = [];
+    for (var i = 0; i < deduped.length; i++) {
+      var o = deduped[i];
+      var idx = o.orderIndex;
+      if (!idx || !byIndex[idx]) {
+        if (idx) byIndex[idx] = o;
+        merged.push(o);
+      } else {
+        var exist = byIndex[idx];
+        // 合并：有用户名的覆盖没有的
+        if (o.customerName && !exist.customerName) {
+          merged[merged.indexOf(exist)] = o;
+          byIndex[idx] = o;
+        } else if (o.source === 'dom' && exist.source !== 'dom') {
+          merged[merged.indexOf(exist)] = o;
+          byIndex[idx] = o;
+        }
+      }
+    }
+    deduped = merged;
+
+    // 如果去重前后数量不同，记录
+    if (allOrders.length !== deduped.length) {
+      console.log('[WM-V2] dedup: ' + allOrders.length + ' → ' + deduped.length + ' orders');
     }
 
     // 排序：待出餐在前，按 orderIndex 倒序

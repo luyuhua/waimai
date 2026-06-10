@@ -1613,7 +1613,7 @@
       return;
     }
 
-    // 去重：同一 orderNo 只显示一条，DOM 优先
+    // 去重 + 数据合并：同一 orderNo 只显示一条
     var seen = {};
     var deduped = [];
     for (var i = 0; i < allOrders.length; i++) {
@@ -1623,12 +1623,37 @@
         deduped.push(o);
       } else {
         var existing = seen[o.orderNo];
-        if (o.source === 'dom') {
+        if (o.customerName && !existing.customerName) {
+          seen[o.orderNo] = o;
+          deduped[deduped.indexOf(existing)] = o;
+        } else if (o.source === 'dom' && existing.source !== 'dom') {
           seen[o.orderNo] = o;
           deduped[deduped.indexOf(existing)] = o;
         }
       }
     }
+
+    // 二次去重：按 orderIndex 合并 API/DOM 可能 orderNo 不同的同一订单
+    var byIndex = {};
+    var merged = [];
+    for (var i = 0; i < deduped.length; i++) {
+      var o = deduped[i];
+      var idx = o.orderIndex;
+      if (!idx || !byIndex[idx]) {
+        if (idx) byIndex[idx] = o;
+        merged.push(o);
+      } else {
+        var exist = byIndex[idx];
+        if (o.customerName && !exist.customerName) {
+          merged[merged.indexOf(exist)] = o;
+          byIndex[idx] = o;
+        } else if (o.source === 'dom' && exist.source !== 'dom') {
+          merged[merged.indexOf(exist)] = o;
+          byIndex[idx] = o;
+        }
+      }
+    }
+    deduped = merged;
 
     deduped.sort(function(a, b) {
       if (a.status === 'pending_cook' && b.status !== 'pending_cook') return -1;
