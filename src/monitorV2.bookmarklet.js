@@ -1359,9 +1359,12 @@
       var all = this.store.getAll();
       var pending = this.store.getPendingCook();
       var timers = this.cookEngine.getPendingTimers();
-      console.log('[WM-V2] orders:', all.length, 'pending:', pending.length, 'timers:', timers.length);
+      this.log('heartbeat: ' + all.length + ' orders, ' + pending.length + ' pending, ' + timers.length + ' timers');
       for (var i = 0; i < timers.length; i++) {
-        console.log('[WM-V2]  timer:', timers[i].orderNo, timers[i].customerName || '', 'remaining:', Math.ceil(timers[i].remainingMs / 1000) + 's');
+        var remaining = Math.ceil(timers[i].remainingMs / 1000);
+        var min = Math.floor(remaining / 60);
+        var sec = remaining % 60;
+        this.log('  timer: #' + timers[i].orderNo + ' ' + (timers[i].customerName || '') + ' → ' + (min > 0 ? min + 'm' : '') + sec + 's');
       }
     }
   }
@@ -1635,7 +1638,7 @@
       } else if (o.status === 'pending_cook' && o.suggestedCookSeconds > 0) {
         detailHtml = '<div class="waimai-order-detail">⏳ 建议 ' + o.suggestedCookTime + '</div>';
       } else if (o.status === 'cooked' || o.status === 'delivered') {
-        detailHtml = '<div class="waimai-order-detail"><span class="done">✅ 已' + statusLabel + '</span></div>';
+        detailHtml = '<div class="waimai-order-detail"><span class="done">✅ ' + statusLabel + '</span></div>';
       } else if (o.isPreOrder && o.suggestedCookDeadline) {
         detailHtml = '<div class="waimai-order-detail">🕒 预约出餐 ' + o.suggestedCookDeadline + '</div>';
       }
