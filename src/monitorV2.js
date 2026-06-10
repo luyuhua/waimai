@@ -40,7 +40,6 @@
       strategy: 'afterOrder',
       cookAfterXs: 60,
       cookBeforeYs: 600,
-      useSuggestedCookTime: true,
       virtualOrderOffsetSeconds: 1200,
       minWaitSeconds: 10,
       checkInterval: 5000,
@@ -73,7 +72,7 @@
       this.running = true;
       this.log('🚀 V2 混合模式监控已启动');
       this.log(`📊 策略: ${this.config.cook.strategy === 'afterOrder' ? '下单后模式' : this.config.cook.strategy === 'beforeCook' ? '出餐前模式' : '手动模式'}`);
-      this.log(`⏰ 即时单: 下单后 ${this.config.cook.cookAfterXs}s ~ ${this.config.cook.useSuggestedCookTime ? '建议时长' : this.config.cook.cookBeforeYs + 's'}`);
+      this.log(`⏰ 即时单: 下单后 ${this.config.cook.cookAfterXs}s ~ ${this.config.cook.cookBeforeYs}s`);
       this.log(`📋 预订单: 虚拟下单 = 送达时间 - ${this.config.cook.virtualOrderOffsetSeconds / 60}分钟`);
       this.log(`🚫 不会自动切换 Tab，只操作当前页面可见的订单`);
 
@@ -253,6 +252,9 @@
         order.suggestedCookTime = ctm ? `${ctm[1]}分${ctm[2]}秒` : '';
         order.suggestedCookSeconds = ctm ? parseInt(ctm[1]) * 60 + parseInt(ctm[2]) : 0;
         order.isPreOrder = text.includes('预订单') || text.includes('预约单');
+        order.suggestedCookDeadline = '';
+        const dlMatch = text.match(/建议出餐时间(\d{2}-\d{2}\s+\d{2}:\d{2})前/);
+        if (dlMatch) order.suggestedCookDeadline = dlMatch[1].trim();
         order.orderTimestamp = V2.TimeUtils.parseOrderTime(order.orderTime);
         order.deliverTimestamp = V2.TimeUtils.parseOrderTime(order.deliverTime);
         if (!order.isPreOrder && order.orderTimestamp > 0 && order.deliverTimestamp > 0 && (order.deliverTimestamp - order.orderTimestamp) > 2 * 3600000) {
@@ -527,7 +529,6 @@
       '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
       '    <label><input type="radio" name="waimai-strategy" value="manual"> 手动出餐</label>',
       '    <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">',
-      '      <label style="font-size:11px;color:#888;"><input type="checkbox" id="waimai-use-suggested" checked> 使用建议出餐时长作为上限</label>',
       '      <label style="font-size:11px;color:#888;margin-top:2px;"><input type="checkbox" id="waimai-show-advanced"> 高级选项</label>',
       '      <div id="waimai-advanced-params" style="display:none;margin-left:22px;margin-top:4px;">',
       '        <label style="font-size:11px;color:#fb923c;">📋 预订单虚拟下单 = 送达前 <input type="number" id="waimai-virtual-offset" value="1200" min="60" max="3600" style="width:55px"> 秒</label>',
@@ -643,7 +644,7 @@
     }
 
     // 参数变更时更新运行中的配置
-    var paramIds = ['waimai-after-min-sec', 'waimai-after-max-sec', 'waimai-before-min-sec', 'waimai-before-max-sec', 'waimai-use-suggested', 'waimai-virtual-offset'];
+    var paramIds = ['waimai-after-min-sec', 'waimai-after-max-sec', 'waimai-before-min-sec', 'waimai-before-max-sec', 'waimai-virtual-offset'];
     paramIds.forEach(function(id) {
       var el = document.getElementById(id);
       if (el) {
@@ -686,7 +687,6 @@
     var afterMaxEl = document.getElementById('waimai-after-max-sec');
     var beforeMinEl = document.getElementById('waimai-before-min-sec');
     var beforeMaxEl = document.getElementById('waimai-before-max-sec');
-    var useSuggestedEl = document.getElementById('waimai-use-suggested');
     var virtualEl = document.getElementById('waimai-virtual-offset');
 
     var radios = document.querySelectorAll('input[name="waimai-strategy"]');
@@ -699,7 +699,6 @@
       cookBeforeYs: parseInt(afterMaxEl ? afterMaxEl.value : 240) || 240,
       cookBeforeYsBeforeCook: parseInt(beforeMinEl ? beforeMinEl.value : 120) || 120,
       cookAfterXsBeforeCook: parseInt(beforeMaxEl ? beforeMaxEl.value : 180) || 180,
-      useSuggestedCookTime: useSuggestedEl ? useSuggestedEl.checked : true,
       virtualOrderOffsetSeconds: parseInt(virtualEl ? virtualEl.value : 1200) || 1200,
     };
   }
@@ -840,14 +839,12 @@
       var afterMaxEl = document.getElementById('waimai-after-max-sec');
       var beforeMinEl = document.getElementById('waimai-before-min-sec');
       var beforeMaxEl = document.getElementById('waimai-before-max-sec');
-      var useSuggestedEl = document.getElementById('waimai-use-suggested');
       var virtualEl = document.getElementById('waimai-virtual-offset');
       var showAdvancedEl = document.getElementById('waimai-show-advanced');
       if (afterMinEl) afterMinEl.value = cfg.cookAfterXs;
       if (afterMaxEl) afterMaxEl.value = cfg.cookBeforeYs;
       if (beforeMinEl) beforeMinEl.value = cfg.cookBeforeYsBeforeCook;
       if (beforeMaxEl) beforeMaxEl.value = cfg.cookAfterXsBeforeCook;
-      if (useSuggestedEl) useSuggestedEl.checked = cfg.useSuggestedCookTime;
       if (virtualEl) virtualEl.value = cfg.virtualOrderOffsetSeconds;
       var panelStrategy = this._mapStrategyToPanel(cfg.strategy);
       var radios = document.querySelectorAll('input[name="waimai-strategy"]');

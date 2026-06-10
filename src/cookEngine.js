@@ -88,8 +88,6 @@
     cookAfterXs: 60,          // 下单后 60 秒开始可以出餐
     /** 下单后最晚等待秒数（窗口终点，即建议出餐时间） */
     cookBeforeYs: 600,        // 下单后 600 秒（10分钟）必须出餐
-    /** 即时单的 cookBeforeYs 是否使用"建议出餐时长"，true=用建议时长，false=用固定 cookBeforeYs */
-    useSuggestedCookTime: true, // 即时单：true 时 cookBeforeYs 不生效，改用 suggestedCookSeconds
 
     // ---- 策略 B: "出餐前" 模式的参数 ----
     /** 出餐截止前 XX 秒开始出餐（窗口起点） */
@@ -135,7 +133,7 @@
       this._running = true;
       console.log('[WM-V2] 出餐引擎已启动');
       console.log(`[WM-V2] 策略: ${this.config.strategy === 'afterOrder' ? '下单后模式' : this.config.strategy === 'beforeCook' ? '出餐前模式' : '手动模式'}`);
-      console.log(`[WM-V2] 即时单: 下单后 ${this.config.cookAfterXs}s ~ ${this.config.useSuggestedCookTime ? '建议时长' : this.config.cookBeforeYs + 's'}`);
+      console.log(`[WM-V2] 即时单: 下单后 ${this.config.cookAfterXs}s ~ ${this.config.cookBeforeYs}s`);
       console.log(`[WM-V2] 预订单: 虚拟下单时间 = 送达时间 - ${this.config.virtualOrderOffsetSeconds}s (${this.config.virtualOrderOffsetSeconds / 60}分钟)`);
       this._checkAll();
       this._intervalId = setInterval(() => this._checkAll(), this.config.checkInterval);
@@ -231,7 +229,7 @@
 
       // 建议出餐截止时间（用于"出餐前"策略）
       const cookDeadline = isPreOrder
-        ? (order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now))
+        ? (TimeUtils.parseOrderTime(order.suggestedCookDeadline, now) || order.deliverTimestamp || TimeUtils.parseOrderTime(order.deliverTime, now))
         : (baseTime + (cookSec > 0 ? cookSec * 1000 : 600000)); // 默认 10 分钟
 
       let start, deadline, strategy;
@@ -245,7 +243,7 @@
         } else {
           // 即时单：下单时间 + cookAfterXs ~ 下单时间 + (建议时长 or cookBeforeYs)
           start = baseTime + this.config.cookAfterXs * 1000;
-          if (this.config.useSuggestedCookTime && cookSec > 0) {
+          if (cookSec > 0) {
             deadline = baseTime + cookSec * 1000;
           } else {
             deadline = baseTime + this.config.cookBeforeYs * 1000;

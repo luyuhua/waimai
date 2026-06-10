@@ -77,6 +77,7 @@
       this.statusDesc = data.statusDesc || '';
       this.cookTime = data.cookTime || '';
       this.suggestedCookTime = data.suggestedCookTime || '';
+      this.suggestedCookDeadline = data.suggestedCookDeadline || '';
 
       // ========== 配送信息 ==========
       this.deliveryType = data.deliveryType || '';
