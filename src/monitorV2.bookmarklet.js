@@ -1616,6 +1616,9 @@
     var badge = document.getElementById('waimai-badge');
     if (!listEl) return;
 
+    var sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+
     var inst = window.__wmV2Instance;
     var allOrders = inst ? inst.store.getAll() : [];
     var timers = inst ? inst.cookEngine.getPendingTimers() : [];
@@ -1724,11 +1727,12 @@
         detailHtml = '<div class="waimai-order-detail">🕒 预约出餐 ' + o.suggestedCookDeadline + '</div>';
       }
 
+      var orderTimeFull = o.orderTimestamp ? fmtTime(o.orderTimestamp) : (o.orderTime || '');
       var debugInfo = 'orderNo: ' + (o.orderNo || '?') +
         ' | source: ' + (o.source || '?') +
         ' | status: ' + (o.status || '?') + (o.apiStatus !== undefined ? ' (api=' + o.apiStatus + ')' : '') +
         ' | isPreOrder: ' + (o.isPreOrder ? 'Y' : 'N') +
-        (o.orderTime ? ' | 下单: ' + o.orderTime : '') +
+        ' | 下单: ' + orderTimeFull +
         (o.deliverTime ? ' | 送达: ' + o.deliverTime : '') +
         (o.suggestedCookTime ? ' | 建议出餐: ' + o.suggestedCookTime : '') +
         (o.suggestedCookDeadline ? ' | 预约出餐: ' + o.suggestedCookDeadline : '') +

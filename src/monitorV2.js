@@ -589,6 +589,10 @@
     var badge = document.getElementById('waimai-badge');
     if (!listEl) return;
 
+    // 用户正在选中文字时不刷新，避免选中被打断
+    var sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+
     var inst = window.__wmV2Instance;
     var allOrders = inst ? inst.store.getAll() : [];
     var timers = inst ? inst.cookEngine.getPendingTimers() : [];
@@ -708,11 +712,13 @@
       }
 
       var name = o.customerName || '';
+      // 用时间戳格式化精确下单时间（含秒），方便验证自动出餐时间计算
+      var orderTimeFull = o.orderTimestamp ? fmtTime(o.orderTimestamp) : (o.orderTime || '');
       var debugInfo = 'orderNo: ' + (o.orderNo || '?') +
         ' | source: ' + (o.source || '?') +
         ' | status: ' + (o.status || '?') + (o.apiStatus !== undefined ? ' (api=' + o.apiStatus + ')' : '') +
         ' | isPreOrder: ' + (o.isPreOrder ? 'Y' : 'N') +
-        (o.orderTime ? ' | 下单: ' + o.orderTime : '') +
+        ' | 下单: ' + orderTimeFull +
         (o.deliverTime ? ' | 送达: ' + o.deliverTime : '') +
         (o.suggestedCookTime ? ' | 建议出餐: ' + o.suggestedCookTime : '') +
         (o.suggestedCookDeadline ? ' | 预约出餐: ' + o.suggestedCookDeadline : '') +
