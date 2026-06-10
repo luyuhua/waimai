@@ -205,39 +205,61 @@
         if (!orderNo) continue;
 
         const existing = this.orders.get(orderNo);
-        const order = new OrderData({
-          ...raw,
-          source: 'dom',
-          updatedAt: Date.now(),
-          // 保留 API 独有的字段（DOM 无法提供的）
-          _cookDeadline: existing?._cookDeadline || 0,
-          _element: raw._element || existing?._element || null,
-          isPreOrder: existing?.isPreOrder || raw.isPreOrder || false,
-          preOrderShowInTabTime: existing?.preOrderShowInTabTime || 0,
-          orderTimestamp: existing?.orderTimestamp || raw.orderTimestamp || 0,
-          deliverTimestamp: existing?.deliverTimestamp || raw.deliverTimestamp || 0,
-          confirmTimestamp: existing?.confirmTimestamp || 0,
-          suggestedCookSeconds: raw.suggestedCookSeconds || existing?.suggestedCookSeconds || 0,
-          apiStatus: existing?.apiStatus || 0,
-          wmOrderViewId: existing?.wmOrderViewId || '',
-          wmOrderId: existing?.wmOrderId || '',
-          statusDesc: existing?.statusDesc || '', // 保留 API 的精确状态描述
-          // DOM 能提供但 API 不能的字段，直接用 DOM 的值
-          customerName: raw.customerName || existing?.customerName || '',
-          phoneTail: raw.phoneTail || existing?.phoneTail || '',
-          riderName: raw.riderName || existing?.riderName || '',
-          suggestedCookTime: raw.suggestedCookTime || existing?.suggestedCookTime || '',
-          cookTime: raw.cookTime || existing?.cookTime || '',
-          isNewCustomer: raw.isNewCustomer ?? existing?.isNewCustomer ?? false,
-          customerOrderCount: raw.customerOrderCount ?? existing?.customerOrderCount ?? 0,
-          isFavCustomer: raw.isFavCustomer ?? existing?.isFavCustomer ?? false,
-          isFlashDelivery: raw.isFlashDelivery ?? existing?.isFlashDelivery ?? false,
-          estimatedIncome: raw.estimatedIncome ?? existing?.estimatedIncome ?? 0,
-          products: raw.products?.length > 0 ? raw.products : (existing?.products || []),
-          buttons: raw.buttons?.length > 0 ? raw.buttons : (existing?.buttons || []),
-        });
 
-        this.orders.set(orderNo, order);
+        if (existing) {
+          // ===== 关键：DOM 只更新它独有的字段，不覆盖 API 的字段 =====
+          // DOM 独有字段 → 用 DOM 的值更新
+          existing.customerName = raw.customerName || existing.customerName;
+          existing.phoneTail = raw.phoneTail || existing.phoneTail;
+          existing.riderName = raw.riderName || existing.riderName;
+          existing.suggestedCookTime = raw.suggestedCookTime || existing.suggestedCookTime;
+          existing.suggestedCookSeconds = raw.suggestedCookSeconds || existing.suggestedCookSeconds;
+          existing.cookTime = raw.cookTime || existing.cookTime;
+          existing.isNewCustomer = raw.isNewCustomer ?? existing.isNewCustomer;
+          existing.customerOrderCount = raw.customerOrderCount ?? existing.customerOrderCount;
+          existing.isFavCustomer = raw.isFavCustomer ?? existing.isFavCustomer;
+          existing.isFlashDelivery = raw.isFlashDelivery ?? existing.isFlashDelivery;
+          existing.estimatedIncome = raw.estimatedIncome ?? existing.estimatedIncome;
+          existing.products = raw.products?.length > 0 ? raw.products : existing.products;
+          existing.buttons = raw.buttons?.length > 0 ? raw.buttons : existing.buttons;
+          existing.deliveryType = raw.deliveryType || existing.deliveryType;
+          existing.remark = raw.remark || existing.remark;
+
+          // DOM 的 DOM 引用和元素
+          if (raw._element) existing._element = raw._element;
+          if (raw._buttonsStale !== undefined) existing._buttonsStale = raw._buttonsStale;
+
+          // DOM 能提供的状态和时间（不覆盖 API 更精确的值，除非 API 没设置）
+          if (!existing.orderTimestamp && raw.orderTimestamp) existing.orderTimestamp = raw.orderTimestamp;
+          if (!existing.deliverTimestamp && raw.deliverTimestamp) existing.deliverTimestamp = raw.deliverTimestamp;
+
+          // DOM 来源的 isPreOrder 可能是启发式推断，API 的值更准确
+          // 只在 API 未设置 isPreOrder 时使用 DOM 的值
+          if (!existing.isPreOrder && raw.isPreOrder) {
+            existing.isPreOrder = true;
+          }
+
+          // 只在不冲突时更新状态（API 状态更精确，DOM 可能有延迟）
+          // 如果 API 已经确认订单出餐了，DOM 可能还显示"待出餐"
+          if (!existing.source || existing.source !== 'api') {
+            // 纯 DOM 来源的订单，使用 DOM 的状态
+            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
+          }
+          // 如果 API 来源，只有状态为空时才用 DOM 补充
+          if (existing.source === 'api' && (!existing.status || existing.status === 'unknown')) {
+            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
+          }
+
+          existing.updatedAt = Date.now();
+        } else {
+          // 新订单：完全由 DOM 数据填充
+          const order = new OrderData({
+            ...raw,
+            source: 'dom',
+            updatedAt: Date.now(),
+          });
+          this.orders.set(orderNo, order);
+        }
         count++;
       }
 

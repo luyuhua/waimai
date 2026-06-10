@@ -164,10 +164,7 @@
     _checkAll() {
       const now = Date.now();
       const ORDER_STATUS = V2.ORDER_STATUS || { PENDING_COOK: 'pending_cook', CANCELLED: 'cancelled' };
-      const pendingOrders = this.store.getPendingCook();
-      const preOrders = this.store.getPreOrders().filter(o => o.status !== ORDER_STATUS.CANCELLED);
-
-      const ordersToCheck = [...pendingOrders, ...preOrders.filter(o => !pendingOrders.find(p => p.orderNo === o.orderNo))];
+      const ordersToCheck = this.store.getPendingCook();
       const updates = [];
 
       for (const order of ordersToCheck) {
