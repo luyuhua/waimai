@@ -632,8 +632,8 @@
       if (!rawOrder) return null;
 
       try {
-        const commonInfo = typeof rawOrder.commonInfo === 'string'
-          ? JSON.parse(rawOrder.commonInfo) : (rawOrder.commonInfo || {});
+        const commonInfoStr = typeof rawOrder.commonInfo === 'string' ? rawOrder.commonInfo : '';
+        const commonInfo = commonInfoStr ? JSON.parse(commonInfoStr) : (rawOrder.commonInfo || {});
         const orderInfoStr = rawOrder.orderInfo;
         const orderInfo = typeof orderInfoStr === 'string'
           ? JSON.parse(orderInfoStr) : (rawOrder.orderInfo || {});
@@ -641,7 +641,15 @@
         const basicVo = uoi.basicVo || {};
         const foodInfo = uoi.foodInfo || {};
 
-        const orderNo = String(commonInfo.wm_order_id_view || uoi.wmOrderViewId || rawOrder.wmOrderViewId || '');
+        // 从 raw JSON 字符串中提取 orderNo 避免 JS Number 精度丢失
+        let orderNo = '';
+        if (commonInfoStr) {
+          const idMatch = commonInfoStr.match(/"wm_order_id_view"\s*:\s*(\d+)/);
+          if (idMatch) orderNo = idMatch[1];
+        }
+        if (!orderNo) {
+          orderNo = String(uoi.wmOrderViewId || rawOrder.wmOrderViewId || '');
+        }
         const statusDesc = uoi.statusDesc || '';
         const status = this._resolveStatus(basicVo.status, statusDesc);
 
