@@ -725,11 +725,31 @@
         '<span class="waimai-detail-toggle" onclick="var d=this.parentElement.parentElement.querySelector(\'.waimai-order-debug\');var v=d.style.display===\'none\'||!d.style.display;d.style.display=v?\'block\':\'none\';this.textContent=v?\'收起 ▾\':\'详情 ▸\'">详情 ▸</span>' +
         '</div>' +
         detailHtml +
-        '<div class="waimai-order-debug">' + debugInfo + '</div>' +
+        '<div class="waimai-order-debug" data-orderno="' + o.orderNo + '">' + debugInfo + '</div>' +
         '</div>';
     }
 
+    // 保存展开状态
+    var expandedOrderNos = {};
+    var currentDebugEls = listEl.querySelectorAll('.waimai-order-debug');
+    for (var e = 0; e < currentDebugEls.length; e++) {
+      if (currentDebugEls[e].style.display === 'block') {
+        var eno = currentDebugEls[e].getAttribute('data-orderno');
+        if (eno) expandedOrderNos[eno] = true;
+      }
+    }
+
     listEl.innerHTML = html;
+
+    // 恢复展开状态
+    for (var eno in expandedOrderNos) {
+      var debugEl = listEl.querySelector('.waimai-order-debug[data-orderno="' + eno + '"]');
+      if (debugEl) {
+        debugEl.style.display = 'block';
+        var toggle = debugEl.parentElement.querySelector('.waimai-detail-toggle');
+        if (toggle) toggle.textContent = '收起 ▾';
+      }
+    }
     if (badge) badge.textContent = pendingCount;
     window.__pendingCount = pendingCount;
 
