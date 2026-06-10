@@ -784,6 +784,7 @@
    */
   window.updatePanelTimers = function() {
     var timerItems = document.querySelectorAll('#waimai-order-list [data-timer-end]');
+    var anyExpired = false;
     for (var i = 0; i < timerItems.length; i++) {
       var el = timerItems[i];
       var endTime = parseInt(el.getAttribute('data-timer-end'));
@@ -791,11 +792,16 @@
       if (remain <= 0) {
         el.innerHTML = '⏰ 出餐中...';
         el.removeAttribute('data-timer-end');
+        anyExpired = true;
       } else {
         var min = Math.floor(remain / 60);
         var sec = remain % 60;
         el.innerHTML = '⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐';
       }
+    }
+    // 计时器到期时立即触发面板刷新，确保状态同步（出餐按钮点击/状态变更）
+    if (anyExpired && typeof window.updatePanelOrders === 'function') {
+      window.updatePanelOrders();
     }
   };
 

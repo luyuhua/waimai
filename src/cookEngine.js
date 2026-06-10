@@ -120,6 +120,9 @@
       this._intervalId = null;
       this._onCook = null;
       this._onUpdate = null;
+      // 每个订单的随机出餐百分比 [0, 1]，下单时随机一次，后续固定
+      // 实际出餐时间 = min + pct * (max - min)，用户改区间不影响百分比
+      this._cookDelayPcts = new Map();
       this.store.onChange((event) => {
         if (event === 'update' && this._running) this._checkAll();
       });
@@ -127,6 +130,19 @@
 
     onCook(callback) { this._onCook = callback; return this; }
     onUpdate(callback) { this._onUpdate = callback; return this; }
+
+    /**
+     * 获取订单的随机出餐百分比 [0, 1]。
+     * 每个订单只随机一次，后续复用，确保出餐时间稳定。
+     * 实际延迟 = cookAfterXs + pct * (cookBeforeYs - cookAfterXs)
+     * 用户修改区间后百分比不变，只是绝对时间跟着变。
+     */
+    _getCookDelayPct(orderNo) {
+      if (!this._cookDelayPcts.has(orderNo)) {
+        this._cookDelayPcts.set(orderNo, Math.random());
+      }
+      return this._cookDelayPcts.get(orderNo);
+    }
 
     start() {
       if (this._running) return this;
@@ -145,6 +161,7 @@
       this._intervalId = null;
       for (const [, info] of this._timers) { if (info.timerId) clearTimeout(info.timerId); }
       this._timers.clear();
+      this._cookDelayPcts.clear();
       this._running = false;
       console.log('[WM-V2] 出餐引擎已停止');
       return this;
@@ -182,6 +199,7 @@
           deadline: window.deadline,
           remainingMs: remaining,
           remainingSec,
+          delayPct: this._getCookDelayPct(order.orderNo),
           deadlineStr: TimeUtils.formatTime(window.deadline),
           windowStart: window.start,
           windowStartStr: TimeUtils.formatTime(window.start),
@@ -191,9 +209,7 @@
 
         // 是否在出餐窗口内？
         if (now >= window.start && now <= window.deadline + 5000) {
-          if (!this._timers.has(order.orderNo)) {
-            this._cook(order);
-          }
+          this._cook(order);
         } else if (window.start > now) {
           this._setTimer(order, window.start - now, window);
         }
@@ -234,27 +250,36 @@
 
       let start, deadline, strategy;
 
+      // 随机出餐延迟：min + pct * (max - min)
+      const pct = this._getCookDelayPct(order.orderNo);
+      const cookAfterXs = this.config.cookAfterXs;
+      const cookBeforeYs = this.config.cookBeforeYs;
+      const randomDelaySec = cookAfterXs + pct * (cookBeforeYs - cookAfterXs);
+
       if (this.config.strategy === 'afterOrder') {
         // ===== 策略 A: "下单后 XX秒 ~ YY秒" =====
         if (isPreOrder) {
-          // 预订单：虚拟下单时间 + cookAfterXs ~ 虚拟下单时间 + cookBeforeYs
-          start = baseTime + this.config.cookAfterXs * 1000;
-          deadline = baseTime + this.config.cookBeforeYs * 1000;
+          // 预订单：虚拟下单时间 + randomDelay ~ 虚拟下单时间 + cookBeforeYs
+          start = baseTime + randomDelaySec * 1000;
+          deadline = baseTime + cookBeforeYs * 1000;
         } else {
-          // 即时单：下单时间 + cookAfterXs ~ 下单时间 + (建议时长 or cookBeforeYs)
-          start = baseTime + this.config.cookAfterXs * 1000;
+          // 即时单：下单时间 + randomDelay ~ 下单时间 + (建议时长 or cookBeforeYs)
+          start = baseTime + randomDelaySec * 1000;
           if (cookSec > 0) {
             deadline = baseTime + cookSec * 1000;
           } else {
-            deadline = baseTime + this.config.cookBeforeYs * 1000;
+            deadline = baseTime + cookBeforeYs * 1000;
           }
         }
         strategy = 'afterOrder';
       } else if (this.config.strategy === 'beforeCook') {
         // ===== 策略 B: "出餐前 XX秒 ~ YY秒" =====
         if (!cookDeadline) return null;
-        // 出餐截止前 cookBeforeYsBeforeCook 秒 ~ 出餐截止前 cookAfterXsBeforeCook 秒
-        start = cookDeadline - this.config.cookBeforeYsBeforeCook * 1000;
+        // 随机出餐延迟：出餐截止前 cookBeforeYsBeforeCook ~ cookAfterXsBeforeCook
+        const beforeMin = this.config.cookBeforeYsBeforeCook;
+        const beforeMax = this.config.cookAfterXsBeforeCook;
+        const randomBeforeSec = beforeMin + pct * (beforeMax - beforeMin);
+        start = cookDeadline - randomBeforeSec * 1000;
         deadline = cookDeadline - this.config.cookAfterXsBeforeCook * 1000;
         strategy = 'beforeCook';
       } else {
@@ -305,6 +330,7 @@
       const timer = this._timers.get(order.orderNo);
       if (timer?.timerId) clearTimeout(timer.timerId);
       this._timers.delete(order.orderNo);
+      this._cookDelayPcts.delete(order.orderNo);
 
       console.log(`[WM-V2] 🔔 出餐时间到！订单 ${order.orderNo} (${order.customerName || ''}${order.isPreOrder ? ', 预订单' : ''})`);
 
@@ -321,5 +347,5 @@
   V2.TimeUtils = TimeUtils;
   V2.DEFAULT_COOK_CONFIG = DEFAULT_COOK_CONFIG;
 
-  console.log('[WM-V2] cookEngine 模块已加载（v2.2 - 双策略 + 预订单虚拟下单时间）');
+  console.log('[WM-V2] cookEngine 模块已加载（v2.3 - 随机出餐延迟 + 修复定时器触发）');
 })();

@@ -215,6 +215,7 @@
           existing.riderName = raw.riderName || existing.riderName;
           existing.suggestedCookTime = raw.suggestedCookTime || existing.suggestedCookTime;
           existing.suggestedCookSeconds = raw.suggestedCookSeconds || existing.suggestedCookSeconds;
+          existing.suggestedCookDeadline = raw.suggestedCookDeadline || existing.suggestedCookDeadline;
           existing.cookTime = raw.cookTime || existing.cookTime;
           existing.isNewCustomer = raw.isNewCustomer ?? existing.isNewCustomer;
           existing.customerOrderCount = raw.customerOrderCount ?? existing.customerOrderCount;
