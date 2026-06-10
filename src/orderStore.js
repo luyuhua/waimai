@@ -366,9 +366,10 @@
         const statusDesc = uoi.statusDesc || '';
         const status = this._resolveStatus(basicVo.status, statusDesc);
 
-        const orderTimestamp = basicVo.orderTime || commonInfo.order_time || 0;
-        const deliverTimestamp = basicVo.estimateArrivalTime || commonInfo.estimateArrivalTime || 0;
-        const confirmTimestamp = basicVo.confirmTime || commonInfo.confirmTime || 0;
+        // API 返回的是 Unix 秒，JS 需要毫秒
+        const orderTimestamp = (basicVo.orderTime || commonInfo.order_time || 0) * 1000;
+        const deliverTimestamp = (basicVo.estimateArrivalTime || commonInfo.estimateArrivalTime || 0) * 1000;
+        const confirmTimestamp = (basicVo.confirmTime || commonInfo.confirmTime || 0) * 1000;
 
         // 从 foodInfo 提取备注
         const remark = foodInfo.remark || '';

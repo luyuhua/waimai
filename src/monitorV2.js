@@ -250,6 +250,9 @@
       if (success) {
         this.log('✅ 自动出餐: ' + orderNo);
         this._notFoundOrders.delete(orderNo);
+        // 立即更新 store 状态，防止下一轮计时重复出餐
+        const stored = this.store.get(orderNo);
+        if (stored) { stored.status = 'cooked'; stored.statusDesc = ''; }
         if (typeof window.updatePanelOrders === 'function') {
           window.updatePanelOrders();
         }
@@ -655,6 +658,11 @@
 
     var pendingCount = 0;
     var html = '';
+    var fmtTime = function(ts) {
+      if (!ts) return '--:--:--';
+      var d = new Date(ts);
+      return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+    };
     var statusLabels = {
       'pending_cook': '待出餐', 'pending_accept': '待接单',
       'cooked': '已出餐', 'delivering': '配送中',
@@ -688,7 +696,9 @@
         var remaining = Math.ceil(timerMatch.remainingMs / 1000);
         var min = Math.floor(remaining / 60);
         var sec = remaining % 60;
-        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.deadline + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐</div>';
+        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.deadline + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
+          (timerMatch.windowStart ? ' <span style="font-size:10px;color:#888">窗口 ' + fmtTime(timerMatch.windowStart) + '~' + fmtTime(timerMatch.deadline) + '</span>' : '') +
+          '</div>';
       } else if (isPending && o.suggestedCookSeconds > 0) {
         detailHtml = '<div class="waimai-order-detail">⏳ 建议 ' + o.suggestedCookTime + '</div>';
       } else if (o.status === 'cooked' || o.status === 'delivered') {
@@ -706,6 +716,7 @@
         (o.deliverTime ? ' | 送达: ' + o.deliverTime : '') +
         (o.suggestedCookTime ? ' | 建议出餐: ' + o.suggestedCookTime : '') +
         (o.suggestedCookDeadline ? ' | 预约出餐: ' + o.suggestedCookDeadline : '') +
+        (timerMatch ? ' | 出餐窗口: ' + fmtTime(timerMatch.windowStart) + ' ~ ' + fmtTime(timerMatch.deadline) : '') +
         (o.cookTime ? ' | 出餐用时: ' + o.cookTime : '') +
         (o.phoneTail ? ' | 尾号: ' + o.phoneTail : '') +
         (o.riderName ? ' | 骑手: ' + o.riderName : '') +
