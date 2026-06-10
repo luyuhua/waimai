@@ -1356,6 +1356,7 @@
           for (var i = 0; i < buttons.length; i++) {
             var t = buttons[i].innerText.trim();
             if (t === '出餐完成' || t === '出餐' || t === '确认出餐') {
+              this.log('🖱️ [自动] 点击按钮「' + t + '」订单 ' + orderNo);
               buttons[i].click();
               return true;
             }
@@ -1373,6 +1374,7 @@
           for (var j = 0; j < btns.length; j++) {
             var btnText = btns[j].innerText.trim();
             if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
+              this.log('🖱️ [自动] 点击按钮「' + btnText + '」订单 ' + orderNo);
               btns[j].click();
               return true;
             }

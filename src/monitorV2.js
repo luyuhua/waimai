@@ -281,6 +281,7 @@
           for (const btn of buttons) {
             const t = btn.innerText.trim();
             if (t === '出餐完成' || t === '出餐' || t === '确认出餐') {
+              this.log('🖱️ [自动] 点击按钮「' + t + '」订单 ' + orderNo);
               btn.click();
               return true;
             }
@@ -297,6 +298,7 @@
           for (const btn of card.querySelectorAll('button')) {
             const btnText = btn.innerText.trim();
             if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
+              this.log('🖱️ [自动] 点击按钮「' + btnText + '」订单 ' + orderNo);
               btn.click();
               return true;
             }
