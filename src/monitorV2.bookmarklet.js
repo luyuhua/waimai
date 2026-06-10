@@ -1125,9 +1125,9 @@
     }
 
     start() {
-      if (this.running) { this.log('warning: monitor already running'); return this; }
+      if (this.running) { this.log('⚠️ 监控已在运行中'); return this; }
       this.running = true;
-      this.log('V2 monitor started');
+      this.log('🚀 监控已启动');
 
       this._cleanStaleDomRefs();
 
@@ -1151,7 +1151,7 @@
       if (this._domPollTimer) clearInterval(this._domPollTimer);
       this.cookEngine.stop();
       this.apiInterceptor.off();
-      this.log('V2 monitor stopped');
+      this.log('🛑 监控已停止');
       return this;
     }
 
@@ -1178,14 +1178,14 @@
       this.cookEngine.stop();
       this.store.clear();
       this._notFoundOrders.clear();
-      this.log('data cleared');
+      this.log('♻️ 数据已清空');
       if (this.running) this.cookEngine.start();
       return this;
     }
 
-    log(msg) {
+    log(msg, category) {
       console.log('[WM-V2]', msg);
-      if (typeof window.panelLog === 'function') window.panelLog(msg, 'gray');
+      if (typeof window.panelLog === 'function') window.panelLog(msg, 'gray', category);
     }
 
     _cleanStaleDomRefs() {
@@ -1296,13 +1296,13 @@
     _onCookTime(orderNo, order) {
       var success = this._clickCookButton(orderNo, order);
       if (success) {
-        this.log('auto-cooked: ' + orderNo);
+        this.log('✅ 自动出餐: ' + orderNo);
         this._notFoundOrders.delete(orderNo);
         if (typeof window.updatePanelOrders === 'function') window.updatePanelOrders();
       } else {
         if (!order._element && !this._notFoundOrders.has(orderNo)) {
           this._notFoundOrders.add(orderNo);
-          this.log('order not on current page: ' + orderNo);
+          this.log('⚠️ 订单不在当前页面: ' + orderNo + ' (需手动出餐)');
         }
       }
     }
@@ -1359,12 +1359,12 @@
       var all = this.store.getAll();
       var pending = this.store.getPendingCook();
       var timers = this.cookEngine.getPendingTimers();
-      this.log('heartbeat: ' + all.length + ' orders, ' + pending.length + ' pending, ' + timers.length + ' timers');
+      this.log('💓 心跳: ' + all.length + '单 待出餐' + pending.length + '单 计时' + timers.length + '单', 'heartbeat');
       for (var i = 0; i < timers.length; i++) {
         var remaining = Math.ceil(timers[i].remainingMs / 1000);
         var min = Math.floor(remaining / 60);
         var sec = remaining % 60;
-        this.log('  timer: #' + timers[i].orderNo + ' ' + (timers[i].customerName || '') + ' → ' + (min > 0 ? min + 'm' : '') + sec + 's');
+        this.log('  ⏰ #' + timers[i].orderNo + ' ' + (timers[i].customerName || '') + ' → ' + (min > 0 ? min + '分' : '') + sec + '秒', 'heartbeat');
       }
     }
   }
@@ -1443,7 +1443,12 @@
       '.waimai-btn-stop { background: #f44336; color: #fff; }',
       '.waimai-btn:disabled { opacity: 0.4; cursor: not-allowed; }',
       '#waimai-log-area { height: 120px; overflow-y: auto; font-size: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; line-height: 1.6; }',
+      '.waimai-log-tabs { display: flex; gap: 2px; margin-bottom: 6px; }',
+      '.waimai-log-tab { font-size: 11px; padding: 2px 10px; border-radius: 3px; cursor: pointer; color: #888; background: rgba(255,255,255,0.05); }',
+      '.waimai-log-tab:hover { color: #ccc; }',
+      '.waimai-log-tab.active { color: #fff; background: rgba(102,126,234,0.3); }',
       '.waimai-log-entry { padding: 1px 0; }',
+      '.waimai-log-entry.hidden { display: none; }',
       '.waimai-log-red { color: #f87171; }',
       '.waimai-log-green { color: #4ade80; }',
       '.waimai-log-blue { color: #60a5fa; }',
@@ -1509,6 +1514,11 @@
       '    <span>📝 日志</span>',
       '    <button onclick="document.getElementById(\'waimai-log-area\').innerHTML=\'\';">清空</button>',
       '  </div>',
+      '  <div class="waimai-log-tabs">',
+      '    <span class="waimai-log-tab active" data-filter="all" onclick="window.filterLogs(\'all\', this)">全部</span>',
+      '    <span class="waimai-log-tab" data-filter="op" onclick="window.filterLogs(\'op\', this)">操作</span>',
+      '    <span class="waimai-log-tab" data-filter="hb" onclick="window.filterLogs(\'hb\', this)">心跳</span>',
+      '  </div>',
       '  <div id="waimai-log-area"></div>',
       '</div>',
     ].join('');
@@ -1521,7 +1531,7 @@
       radios[i].addEventListener('change', function() {
         window.__cookConfig = window.__cookConfig || {};
         window.__cookConfig.strategy = this.value;
-        window.panelLog('strategy: ' + this.value, 'blue');
+        window.panelLog('🔄 策略切换: ' + this.value, 'blue');
       });
     }
 
@@ -1546,13 +1556,21 @@
     }
   };
 
-  window.panelLog = function(message, color) {
+  window.panelLog = function(message, color, category) {
     console.log('%c[WM-V2] ' + message, 'color:' + (color === 'red' ? 'red' : color === 'green' ? 'green' : color === 'blue' ? '#667eea' : '#888') + ';font-weight:bold;');
 
     var logArea = document.getElementById('waimai-log-area');
     if (!logArea) return;
     var entry = document.createElement('div');
     entry.className = 'waimai-log-entry';
+    if (category === 'heartbeat') entry.classList.add('waimai-log-hb');
+    else entry.classList.add('waimai-log-op');
+
+    var activeTab = document.querySelector('.waimai-log-tab.active');
+    var currentFilter = activeTab ? activeTab.getAttribute('data-filter') : 'all';
+    if (currentFilter === 'op' && category === 'heartbeat') entry.classList.add('hidden');
+    if (currentFilter === 'hb' && category !== 'heartbeat') entry.classList.add('hidden');
+
     var now = new Date();
     var ts = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
     var colorClass = color ? 'waimai-log-' + color : '';
@@ -1560,6 +1578,24 @@
     logArea.appendChild(entry);
     while (logArea.childElementCount > 100) { logArea.removeChild(logArea.firstChild); }
     logArea.scrollTop = logArea.scrollHeight;
+  };
+
+  window.filterLogs = function(filter, tabEl) {
+    var tabs = document.querySelectorAll('.waimai-log-tab');
+    for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); }
+    if (tabEl) tabEl.classList.add('active');
+
+    var entries = document.querySelectorAll('#waimai-log-area .waimai-log-entry');
+    for (var i = 0; i < entries.length; i++) {
+      var el = entries[i];
+      if (filter === 'all') {
+        el.classList.remove('hidden');
+      } else if (filter === 'op') {
+        el.classList.toggle('hidden', el.classList.contains('waimai-log-hb'));
+      } else if (filter === 'hb') {
+        el.classList.toggle('hidden', !el.classList.contains('waimai-log-hb'));
+      }
+    }
   };
 
   window.updatePanelOrders = function() {
@@ -1710,7 +1746,7 @@
       virtualOrderOffsetSeconds: 1200,
     }});
 
-    window.panelLog('monitoring started', 'green');
+    window.panelLog('✅ 监控已启动', 'green');
 
     var startBtn = document.getElementById('waimai-btn-start');
     var stopBtn = document.getElementById('waimai-btn-stop');
@@ -1722,7 +1758,7 @@
 
   window.stopOrderMonitor = function() {
     window.__WM_STOP();
-    window.panelLog('monitoring stopped', 'red');
+    window.panelLog('🛑 监控已停止', 'red');
 
     var startBtn = document.getElementById('waimai-btn-start');
     var stopBtn = document.getElementById('waimai-btn-stop');
