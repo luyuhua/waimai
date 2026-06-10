@@ -180,6 +180,19 @@
       const now = Date.now();
       const ORDER_STATUS = V2.ORDER_STATUS || { PENDING_COOK: 'pending_cook', CANCELLED: 'cancelled' };
       const ordersToCheck = this.store.getPendingCook();
+
+      // 清理不再是 pending_cook 的订单的计时器和随机百分比
+      // （商户手动出餐、订单取消等场景下，状态变了但计时器还在）
+      const pendingNos = new Set(ordersToCheck.map(o => o.orderNo));
+      for (const orderNo of [...this._timers.keys()]) {
+        if (!pendingNos.has(orderNo)) {
+          const info = this._timers.get(orderNo);
+          if (info?.timerId) clearTimeout(info.timerId);
+          this._timers.delete(orderNo);
+          this._cookDelayPcts.delete(orderNo);
+        }
+      }
+
       const updates = [];
 
       for (const order of ordersToCheck) {
