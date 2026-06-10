@@ -153,7 +153,7 @@
     getPendingTimers() {
       return [...this._timers.entries()].map(([orderNo, info]) => ({
         orderNo, ...info,
-        remainingMs: Math.max(0, info.deadline - Date.now()),
+        remainingMs: Math.max(0, info.windowStart - Date.now()),
       }));
     }
 
@@ -171,7 +171,7 @@
 
         order._cookDeadline = window.deadline;
 
-        const remaining = window.deadline - now;
+        const remaining = window.start - now;  // 距实际出餐触发点的时间
         const remainingSec = Math.max(0, Math.ceil(remaining / 1000));
 
         updates.push({

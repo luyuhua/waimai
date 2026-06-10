@@ -908,7 +908,7 @@
     getPendingTimers() {
       return [...this._timers.entries()].map(([orderNo, info]) => ({
         orderNo, ...info,
-        remainingMs: Math.max(0, info.deadline - Date.now()),
+        remainingMs: Math.max(0, info.windowStart - Date.now()),
       }));
     }
 
@@ -926,7 +926,7 @@
 
         order._cookDeadline = window.deadline;
 
-        const remaining = window.deadline - now;
+        const remaining = window.start - now;  // 距实际出餐触发点的时间
         const remainingSec = Math.max(0, Math.ceil(remaining / 1000));
 
         updates.push({
@@ -1716,7 +1716,7 @@
         var remaining = Math.ceil(timerMatch.remainingMs / 1000);
         var min = Math.floor(remaining / 60);
         var sec = remaining % 60;
-        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.deadline + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
+        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.windowStart + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
           (timerMatch.windowStart ? ' <span style="font-size:10px;color:#fb923c">⏱ ' + fmtTime(timerMatch.windowStart) + '</span>' : '') +
           '</div>';
       } else if (o.status === 'pending_cook' && o.suggestedCookSeconds > 0) {

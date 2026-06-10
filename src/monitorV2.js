@@ -700,7 +700,7 @@
         var remaining = Math.ceil(timerMatch.remainingMs / 1000);
         var min = Math.floor(remaining / 60);
         var sec = remaining % 60;
-        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.deadline + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
+        detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timerMatch.windowStart + '">⏰ <span class="timer">' + (min > 0 ? min + '分' : '') + sec + '秒</span>后出餐' +
           (timerMatch.windowStart ? ' <span style="font-size:10px;color:#fb923c">⏱ ' + fmtTime(timerMatch.windowStart) + '</span>' : '') +
           '</div>';
       } else if (isPending && o.suggestedCookSeconds > 0) {
