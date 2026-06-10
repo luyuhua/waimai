@@ -240,15 +240,9 @@
             existing.isPreOrder = true;
           }
 
-          // 只在不冲突时更新状态（API 状态更精确，DOM 可能有延迟）
-          // 如果 API 已经确认订单出餐了，DOM 可能还显示"待出餐"
-          if (!existing.source || existing.source !== 'api') {
-            // 纯 DOM 来源的订单，使用 DOM 的状态
-            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
-          }
-          // 如果 API 来源，只有状态为空时才用 DOM 补充
-          if (existing.source === 'api' && (!existing.status || existing.status === 'unknown')) {
-            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
+          // DOM 状态始终覆盖 API — 页面是实时真值，API 可能滞后
+          if (raw.status && raw.status !== 'unknown') {
+            existing.status = raw.status;
           }
 
           existing.updatedAt = Date.now();

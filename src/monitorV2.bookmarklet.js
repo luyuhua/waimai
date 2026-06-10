@@ -532,12 +532,9 @@
             existing.isPreOrder = true;
           }
 
-          // 只在不冲突时更新状态（API 状态更精确，DOM 可能有延迟）
-          if (!existing.source || existing.source !== 'api') {
-            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
-          }
-          if (existing.source === 'api' && (!existing.status || existing.status === 'unknown')) {
-            if (raw.status && raw.status !== 'unknown') existing.status = raw.status;
+          // DOM 状态始终覆盖 API — 页面是实时真值，API 可能滞后
+          if (raw.status && raw.status !== 'unknown') {
+            existing.status = raw.status;
           }
 
           existing.updatedAt = Date.now();
