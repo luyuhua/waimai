@@ -1438,6 +1438,9 @@
       '.waimai-order-detail { font-size: 12px; color: #888; padding-left: 4px; }',
       '.waimai-order-detail .timer { color: #f59e0b; font-weight: bold; }',
       '.waimai-order-detail .done { color: #4ade80; }',
+      '.waimai-detail-toggle { font-size: 10px; color: #667eea; cursor: pointer; margin-left: auto; white-space: nowrap; user-select: none; }',
+      '.waimai-detail-toggle:hover { color: #8b9cf7; }',
+      '.waimai-order-debug { font-size: 11px; color: #888; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 6px 8px; margin-top: 4px; line-height: 1.5; display: none; }',
       '#waimai-order-list { max-height: 150px; overflow-y: auto; }',
       '#waimai-order-list.expanded { max-height: 400px; }',
       '.waimai-strategy { margin-top: 6px; }',
@@ -1712,13 +1715,34 @@
         detailHtml = '<div class="waimai-order-detail">🕒 预约出餐 ' + o.suggestedCookDeadline + '</div>';
       }
 
+      var debugInfo = 'orderNo: ' + (o.orderNo || '?') +
+        ' | source: ' + (o.source || '?') +
+        ' | status: ' + (o.status || '?') + (o.apiStatus !== undefined ? ' (api=' + o.apiStatus + ')' : '') +
+        ' | isPreOrder: ' + (o.isPreOrder ? 'Y' : 'N') +
+        (o.orderTime ? ' | 下单: ' + o.orderTime : '') +
+        (o.deliverTime ? ' | 送达: ' + o.deliverTime : '') +
+        (o.suggestedCookTime ? ' | 建议出餐: ' + o.suggestedCookTime : '') +
+        (o.suggestedCookDeadline ? ' | 预约出餐: ' + o.suggestedCookDeadline : '') +
+        (o.cookTime ? ' | 出餐用时: ' + o.cookTime : '') +
+        (o.phoneTail ? ' | 尾号: ' + o.phoneTail : '') +
+        (o.riderName ? ' | 骑手: ' + o.riderName : '') +
+        (o.deliveryType ? ' | 配送: ' + o.deliveryType : '') +
+        (o.estimatedIncome ? ' | 预计收入: ¥' + o.estimatedIncome : '') +
+        (o.remark ? ' | 备注: ' + o.remark : '') +
+        (o.buttons && o.buttons.length > 0 ? ' | btns: ' + o.buttons.map(function(b){return b.text}).join(',') : '') +
+        (o.isNewCustomer ? ' | 新客' : '') +
+        (o.isFavCustomer ? ' | 收藏' : '') +
+        (o.isFlashDelivery ? ' | 闪电送' : '');
+
       html += '<div class="waimai-order-item">' +
         '<div class="waimai-order-top">' +
         '<span class="waimai-order-id">#' + (o.orderIndex || '?') + '</span> ' +
         '<span class="waimai-order-name">' + (o.customerName || '') + '</span> ' +
         statusTag +
+        '<span class="waimai-detail-toggle" onclick="var d=this.parentElement.parentElement.querySelector(\'.waimai-order-debug\');var v=d.style.display===\'none\'||!d.style.display;d.style.display=v?\'block\':\'none\';this.textContent=v?\'收起 ▾\':\'详情 ▸\'">详情 ▸</span>' +
         '</div>' +
         detailHtml +
+        '<div class="waimai-order-debug">' + debugInfo + '</div>' +
         '</div>';
     }
 
