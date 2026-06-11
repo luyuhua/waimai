@@ -181,15 +181,17 @@
       const ORDER_STATUS = V2.ORDER_STATUS || { PENDING_COOK: 'pending_cook', CANCELLED: 'cancelled' };
       const ordersToCheck = this.store.getPendingCook();
 
-      // 清理不再是 pending_cook 的订单的计时器和随机百分比
+      // 清理不再是 pending_cook 的订单的计时器
       // （商户手动出餐、订单取消等场景下，状态变了但计时器还在）
+      // 注意：_cookDelayPcts 不在这里清理，因为状态可能短暂闪烁（API/DOM 数据竞争），
+      // 闪烁后 pct 重新随机化可能让出餐时间漂移到过去导致永久卡住。
+      // pct 只在 _cook 成功后清理（一次性、跟订单生命周期走）。
       const pendingNos = new Set(ordersToCheck.map(o => o.orderNo));
       for (const orderNo of [...this._timers.keys()]) {
         if (!pendingNos.has(orderNo)) {
           const info = this._timers.get(orderNo);
           if (info?.timerId) clearTimeout(info.timerId);
           this._timers.delete(orderNo);
-          this._cookDelayPcts.delete(orderNo);
         }
       }
 
@@ -220,10 +222,12 @@
           virtualOrderTime: window.virtualOrderTime,
         });
 
-        // 是否在出餐窗口内？
-        if (now >= window.start && now <= window.deadline + 5000) {
+        // 是否到达出餐时间？
+        if (now >= window.start) {
+          // 已到达或超过出餐时间 → 立刻出餐（不管是否过期都补出，对齐 V1 行为）
           this._cook(order);
-        } else if (window.start > now) {
+        } else {
+          // 还没到出餐时间 → 设置 setTimeout 等待
           this._setTimer(order, window.start - now, window);
         }
       }

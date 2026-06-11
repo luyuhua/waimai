@@ -257,10 +257,11 @@
           window.updatePanelOrders();
         }
       } else {
-        const hasElement = !!order._element;
-        if (!hasElement && !this._notFoundOrders.has(orderNo)) {
+        // 点击失败 → 不要标记 cooked，下一轮 _checkAll 会自动重试
+        if (!this._notFoundOrders.has(orderNo)) {
           this._notFoundOrders.add(orderNo);
-          this.log('⚠️ 订单不在当前页面: ' + orderNo + ' (需手动出餐)');
+          const reason = order?._element ? 'DOM 引用过期' : '订单不在当前页面';
+          this.log('⚠️ 自动出餐失败 (' + reason + '): ' + orderNo + '，下轮重试');
         }
       }
     }
@@ -274,17 +275,25 @@
         }
       }
 
+      // 查找出餐按钮（同时支持 <button> 和 <div class="submit-button_xxx">，对齐 V1 getCardButtons）
+      const findCookButton = (container) => {
+        const btns = Array.from(container.querySelectorAll('button'));
+        const divBtns = Array.from(container.querySelectorAll('div[class*="submit-button"]'));
+        for (const btn of btns.concat(divBtns)) {
+          const t = (btn.innerText || '').trim();
+          if (t === '出餐完成' || t === '出餐' || t === '确认出餐') return btn;
+        }
+        return null;
+      };
+
       // 方法 1：通过 DOM 引用直接操作
-      if (order?._element) {
+      if (order && order._element) {
         try {
-          const buttons = order._element.querySelectorAll('button');
-          for (const btn of buttons) {
-            const t = btn.innerText.trim();
-            if (t === '出餐完成' || t === '出餐' || t === '确认出餐') {
-              this.log('🖱️ [自动] 点击按钮「' + t + '」订单 ' + orderNo);
-              btn.click();
-              return true;
-            }
+          const btn = findCookButton(order._element);
+          if (btn) {
+            this.log('🖱️ [自动] 点击按钮「' + btn.innerText.trim() + '」订单 ' + orderNo);
+            btn.click();
+            return true;
           }
         } catch (e) {}
       }
@@ -295,13 +304,11 @@
         const text = card.innerText || '';
         const match = text.match(/订单编号[：:]\s*(\d+)/);
         if (match && match[1] === orderNo) {
-          for (const btn of card.querySelectorAll('button')) {
-            const btnText = btn.innerText.trim();
-            if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
-              this.log('🖱️ [自动] 点击按钮「' + btnText + '」订单 ' + orderNo);
-              btn.click();
-              return true;
-            }
+          const btn = findCookButton(card);
+          if (btn) {
+            this.log('🖱️ [自动] 点击按钮「' + btn.innerText.trim() + '」订单 ' + orderNo);
+            btn.click();
+            return true;
           }
         }
       }

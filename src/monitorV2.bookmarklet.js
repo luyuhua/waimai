@@ -453,7 +453,7 @@
           existing.orderIndex = parsed.orderIndex;
           existing.orderTime = parsed.orderTime || existing.orderTime;
           existing.deliverTime = parsed.deliverTime || existing.deliverTime;
-          existing.status = parsed.status;
+          existing.status = this._mergeStatus(existing.status, parsed.status);
           existing.statusDesc = parsed.statusDesc || existing.statusDesc;
           existing.isPreOrder = parsed.isPreOrder;
           existing.preOrderShowInTabTime = parsed.preOrderShowInTabTime;
@@ -533,9 +533,9 @@
             existing.isPreOrder = true;
           }
 
-          // DOM 状态始终覆盖 API — 页面是实时真值，API 可能滞后
+          // DOM 状态覆盖 API — 页面是实时真值，但禁止状态倒退（如 cooked → pending_cook）
           if (raw.status && raw.status !== 'unknown') {
-            existing.status = raw.status;
+            existing.status = this._mergeStatus(existing.status, raw.status);
           }
 
           existing.updatedAt = Date.now();
@@ -739,6 +739,32 @@
       }
       return ORDER_STATUS.UNKNOWN;
     }
+
+    /**
+     * 状态合并：禁止状态"倒退"（如 cooked → pending_cook）。
+     * 状态推进顺序：pending_accept → pending_cook → cooked → delivering → delivered
+     * cancelled 可以从任何状态进入；unknown 不覆盖已有状态。
+     * 这是为了防止 API/DOM 数据竞争时旧数据把已出餐订单改回待出餐。
+     */
+    _mergeStatus(oldStatus, newStatus) {
+      if (!newStatus || newStatus === ORDER_STATUS.UNKNOWN) return oldStatus;
+      if (!oldStatus || oldStatus === ORDER_STATUS.UNKNOWN) return newStatus;
+      if (newStatus === ORDER_STATUS.CANCELLED) return newStatus;
+      const RANK = {
+        [ORDER_STATUS.PENDING_ACCEPT]: 1,
+        [ORDER_STATUS.PENDING_COOK]: 2,
+        [ORDER_STATUS.COOKED]: 3,
+        [ORDER_STATUS.DELIVERING]: 4,
+        [ORDER_STATUS.DELIVERED]: 5,
+      };
+      const oldRank = RANK[oldStatus];
+      const newRank = RANK[newStatus];
+      if (oldRank && newRank && newRank < oldRank) {
+        // 禁止倒退
+        return oldStatus;
+      }
+      return newStatus;
+    }
   }
 
   // ==================== 导出 ====================
@@ -934,15 +960,17 @@
       const ORDER_STATUS = V2.ORDER_STATUS || { PENDING_COOK: 'pending_cook', CANCELLED: 'cancelled' };
       const ordersToCheck = this.store.getPendingCook();
 
-      // 清理不再是 pending_cook 的订单的计时器和随机百分比
+      // 清理不再是 pending_cook 的订单的计时器
       // （商户手动出餐、订单取消等场景下，状态变了但计时器还在）
+      // 注意：_cookDelayPcts 不在这里清理，因为状态可能短暂闪烁（API/DOM 数据竞争），
+      // 闪烁后 pct 重新随机化可能让出餐时间漂移到过去导致永久卡住。
+      // pct 只在 _cook 成功后清理（一次性、跟订单生命周期走）。
       const pendingNos = new Set(ordersToCheck.map(o => o.orderNo));
       for (const orderNo of [...this._timers.keys()]) {
         if (!pendingNos.has(orderNo)) {
           const info = this._timers.get(orderNo);
           if (info?.timerId) clearTimeout(info.timerId);
           this._timers.delete(orderNo);
-          this._cookDelayPcts.delete(orderNo);
         }
       }
 
@@ -973,10 +1001,12 @@
           virtualOrderTime: window.virtualOrderTime,
         });
 
-        // 是否在出餐窗口内？
-        if (now >= window.start && now <= window.deadline + 5000) {
+        // 是否到达出餐时间？
+        if (now >= window.start) {
+          // 已到达或超过出餐时间 → 立刻出餐（不管是否过期都补出，对齐 V1 行为）
           this._cook(order);
-        } else if (window.start > now) {
+        } else {
+          // 还没到出餐时间 → 设置 setTimeout 等待
           this._setTimer(order, window.start - now, window);
         }
       }
@@ -1347,9 +1377,11 @@
         if (stored) { stored.status = 'cooked'; stored.statusDesc = ''; }
         if (typeof window.updatePanelOrders === 'function') window.updatePanelOrders();
       } else {
-        if (!order._element && !this._notFoundOrders.has(orderNo)) {
+        // 点击失败 → 不要标记 cooked，下一轮 _checkAll 会自动重试
+        if (!this._notFoundOrders.has(orderNo)) {
           this._notFoundOrders.add(orderNo);
-          this.log('⚠️ 订单不在当前页面: ' + orderNo + ' (需手动出餐)');
+          var reason = (order && order._element) ? 'DOM 引用过期' : '订单不在当前页面';
+          this.log('⚠️ 自动出餐失败 (' + reason + '): ' + orderNo + '，下轮重试');
         }
       }
     }
@@ -1363,34 +1395,42 @@
         }
       }
 
+      // 查找出餐按钮（同时支持 <button> 和 <div class="submit-button_xxx">，对齐 V1 getCardButtons）
+      var findCookButton = function(container) {
+        var btns = Array.prototype.slice.call(container.querySelectorAll('button'));
+        var divBtns = Array.prototype.slice.call(container.querySelectorAll('div[class*="submit-button"]'));
+        var all = btns.concat(divBtns);
+        for (var i = 0; i < all.length; i++) {
+          var t = (all[i].innerText || '').trim();
+          if (t === '出餐完成' || t === '出餐' || t === '确认出餐') return all[i];
+        }
+        return null;
+      };
+
+      // 方法 1：通过 DOM 引用直接操作
       if (order && order._element) {
         try {
-          var buttons = order._element.querySelectorAll('button');
-          for (var i = 0; i < buttons.length; i++) {
-            var t = buttons[i].innerText.trim();
-            if (t === '出餐完成' || t === '出餐' || t === '确认出餐') {
-              this.log('🖱️ [自动] 点击按钮「' + t + '」订单 ' + orderNo);
-              buttons[i].click();
-              return true;
-            }
+          var btn = findCookButton(order._element);
+          if (btn) {
+            this.log('🖱️ [自动] 点击按钮「' + btn.innerText.trim() + '」订单 ' + orderNo);
+            btn.click();
+            return true;
           }
         } catch (e) {}
       }
 
+      // 方法 2：通过订单号在当前页面搜索
       var cards = doc.querySelectorAll('[class*="order-card"]');
       for (var i = 0; i < cards.length; i++) {
         var card = cards[i];
         var text = card.innerText || '';
         var match = text.match(/订单编号[：:]\s*(\d+)/);
         if (match && match[1] === orderNo) {
-          var btns = card.querySelectorAll('button');
-          for (var j = 0; j < btns.length; j++) {
-            var btnText = btns[j].innerText.trim();
-            if (btnText === '出餐完成' || btnText === '出餐' || btnText === '确认出餐') {
-              this.log('🖱️ [自动] 点击按钮「' + btnText + '」订单 ' + orderNo);
-              btns[j].click();
-              return true;
-            }
+          var btn2 = findCookButton(card);
+          if (btn2) {
+            this.log('🖱️ [自动] 点击按钮「' + btn2.innerText.trim() + '」订单 ' + orderNo);
+            btn2.click();
+            return true;
           }
         }
       }

@@ -161,7 +161,7 @@
           existing.orderIndex = parsed.orderIndex;
           existing.orderTime = parsed.orderTime || existing.orderTime;
           existing.deliverTime = parsed.deliverTime || existing.deliverTime;
-          existing.status = parsed.status;
+          existing.status = this._mergeStatus(existing.status, parsed.status);
           existing.statusDesc = parsed.statusDesc || existing.statusDesc;
           existing.isPreOrder = parsed.isPreOrder;
           existing.preOrderShowInTabTime = parsed.preOrderShowInTabTime;
@@ -241,9 +241,9 @@
             existing.isPreOrder = true;
           }
 
-          // DOM 状态始终覆盖 API — 页面是实时真值，API 可能滞后
+          // DOM 状态覆盖 API — 页面是实时真值，但禁止状态倒退（如 cooked → pending_cook）
           if (raw.status && raw.status !== 'unknown') {
-            existing.status = raw.status;
+            existing.status = this._mergeStatus(existing.status, raw.status);
           }
 
           existing.updatedAt = Date.now();
@@ -449,6 +449,32 @@
         return ORDER_STATUS.PENDING_COOK;
       }
       return ORDER_STATUS.UNKNOWN;
+    }
+
+    /**
+     * 状态合并：禁止状态"倒退"（如 cooked → pending_cook）。
+     * 状态推进顺序：pending_accept → pending_cook → cooked → delivering → delivered
+     * cancelled 可以从任何状态进入；unknown 不覆盖已有状态。
+     * 这是为了防止 API/DOM 数据竞争时旧数据把已出餐订单改回待出餐。
+     */
+    _mergeStatus(oldStatus, newStatus) {
+      if (!newStatus || newStatus === ORDER_STATUS.UNKNOWN) return oldStatus;
+      if (!oldStatus || oldStatus === ORDER_STATUS.UNKNOWN) return newStatus;
+      if (newStatus === ORDER_STATUS.CANCELLED) return newStatus;
+      const RANK = {
+        [ORDER_STATUS.PENDING_ACCEPT]: 1,
+        [ORDER_STATUS.PENDING_COOK]: 2,
+        [ORDER_STATUS.COOKED]: 3,
+        [ORDER_STATUS.DELIVERING]: 4,
+        [ORDER_STATUS.DELIVERED]: 5,
+      };
+      const oldRank = RANK[oldStatus];
+      const newRank = RANK[newStatus];
+      if (oldRank && newRank && newRank < oldRank) {
+        // 禁止倒退
+        return oldStatus;
+      }
+      return newStatus;
     }
   }
 
