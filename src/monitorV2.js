@@ -417,6 +417,7 @@
       '.waimai-btn:hover { opacity: 0.85; }',
       '.waimai-btn-start { background: #4CAF50; color: #fff; }',
       '.waimai-btn-stop { background: #f44336; color: #fff; }',
+      '.waimai-btn-clear { background: #fb923c; color: #fff; }',
       '.waimai-btn:disabled { opacity: 0.4; cursor: not-allowed; }',
       '#waimai-log-area { height: 120px; overflow-y: auto; font-size: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; line-height: 1.6; }',
       '.waimai-log-tabs { display: flex; gap: 2px; margin-bottom: 6px; }',
@@ -485,6 +486,7 @@
       '  <div class="waimai-btn-row">',
       '    <button class="waimai-btn waimai-btn-start" id="waimai-btn-start" onclick="window.startMonitorFromPanel()">开始监控</button>',
       '    <button class="waimai-btn waimai-btn-stop" id="waimai-btn-stop" onclick="window.stopOrderMonitor()" disabled>停止监控</button>',
+      '    <button class="waimai-btn waimai-btn-clear" onclick="window.clearStoreCache()" title="清空所有缓存订单和计时器，重新开始">🗑️ 清空缓存</button>',
       '  </div>',
       '</div>',
       '<div class="waimai-section">',
@@ -662,11 +664,12 @@
       console.log('[WM-V2] dedup: ' + allOrders.length + ' → ' + deduped.length + ' orders');
     }
 
-    // 排序：待出餐在前，按 orderIndex 倒序
+    // 排序：待出餐在前，同状态按下单时间倒序（新订单在前）
+    // 用 orderTimestamp 而非 orderIndex，因为 orderIndex 是天级序号，跨天会重复
     deduped.sort(function(a, b) {
       if (a.status === 'pending_cook' && b.status !== 'pending_cook') return -1;
       if (a.status !== 'pending_cook' && b.status === 'pending_cook') return 1;
-      return (b.orderIndex || 0) - (a.orderIndex || 0);
+      return (b.orderTimestamp || 0) - (a.orderTimestamp || 0);
     });
 
     var pendingCount = 0;
@@ -871,6 +874,23 @@
     if (stopBtn) stopBtn.disabled = true;
 
     window.updatePanelOrders();
+  };
+
+  /**
+   * 清空缓存：清除所有订单数据和计时器，刷新面板
+   */
+  window.clearStoreCache = function() {
+    var inst = window.__wmV2Instance;
+    if (inst) {
+      inst.reset();
+    } else {
+      // 实例不存在时，手动清理 store
+      try { localStorage.removeItem('__WM_V2_orders'); } catch(e) {}
+    }
+    window.panelLog('🗑️ 缓存已清空，重新开始', 'orange');
+    if (typeof window.updatePanelOrders === 'function') {
+      window.updatePanelOrders();
+    }
   };
 
   // ==================== 定时器（全局） ====================
