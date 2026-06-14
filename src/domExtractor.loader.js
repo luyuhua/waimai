@@ -1,29 +1,59 @@
 /**
- * @file DOM 提取工具 Loader - 书签动态加载脚本
- * @description 此文件部署到 GitHub Pages，书签通过 javascript: 协议动态加载此脚本
- * @usage 书签的 href 使用短小的 loader 代码来加载此文件
+ * @file 美团外卖自动出餐助手 V1 - Bookmarklet Loader
+ * @description 按顺序加载两个脚本：先加载页面分析器（pageAnalyzer.js），
+ *              再加载主书签脚本（domExtractor.bookmarklet.js）。
+ *
+ *              加载链路：
+ *                ① pageAnalyzer.js        — DOM 提取 + 打印（页面分析工具）
+ *                ② domExtractor.bookmarklet.js — 美团自动出餐主业务
+ *
+ *              书签的 href 只放短小的 loader 代码，便于部署到 GitHub Pages。
+ *
+ * @usage 书签 javascript:
+ *   javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t='+Date.now();document.body.appendChild(s);})()
  */
 
-(function() {
+(function () {
     'use strict';
 
-    // 构建脚本 URL（带缓存破坏参数）
-    var scriptUrl = 'https://luyuhua.github.io/waimai/src/domExtractor.bookmarklet.js?t=' + Date.now();
+    var CDN_BASE = 'https://luyuhua.github.io/waimai/src/';
+    var cacheBust = '?t=' + Date.now();
 
-    // 强制重新加载：清除旧标志，确保拉取最新脚本
-    delete window.__domExtractorLoaded;
+    // 停止之前的实例（如果主脚本有 stop 接口）
+    // 这里只是占位 — 实际 stop 在主脚本里实现
 
-    // 创建 script 标签加载完整代码
-    var s = document.createElement('script');
-    s.src = scriptUrl;
-    s.type = 'text/javascript';
-    s.setAttribute('crossorigin', 'anonymous');
-    s.onload = function() {
-        console.log('✅ DOM 提取脚本加载完成！');
-    };
-    s.onerror = function() {
-        console.error('❌ DOM 提取脚本加载失败！请检查网络连接。');
-        console.log('💡 备用方案：直接在控制台粘贴 domExtractor.console.js 的代码');
-    };
-    document.body.appendChild(s);
+    // 加载第二个脚本的辅助函数
+    function loadScript(src, onload, onerror) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.type = 'text/javascript';
+        s.setAttribute('crossorigin', 'anonymous');
+        if (onload) s.onload = onload;
+        if (onerror) s.onerror = onerror;
+        document.body.appendChild(s);
+    }
+
+    // 链式加载：先 pageAnalyzer.js，再 domExtractor.bookmarklet.js
+    loadScript(
+        CDN_BASE + 'pageAnalyzer.js' + cacheBust,
+        function () {
+            console.log('✅ pageAnalyzer 加载完成');
+            // pageAnalyzer 已经挂 window.domExtractor / window.printDomResults
+            // 接下来加载主书签脚本
+            loadScript(
+                CDN_BASE + 'domExtractor.bookmarklet.js' + cacheBust,
+                function () {
+                    console.log('✅ domExtractor.bookmarklet 加载完成');
+                },
+                function () {
+                    console.error('❌ domExtractor.bookmarklet.js 加载失败！');
+                    console.log('💡 备用方案：直接在控制台粘贴 domExtractor.bookmarklet.js 的代码');
+                }
+            );
+        },
+        function () {
+            console.error('❌ pageAnalyzer.js 加载失败！');
+            console.log('💡 备用方案：直接在控制台粘贴 pageAnalyzer.js 的代码');
+        }
+    );
 })();
