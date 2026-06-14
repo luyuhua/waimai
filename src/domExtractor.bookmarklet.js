@@ -348,11 +348,11 @@
     window.monitorOrders = function(intervalMs) {
         intervalMs = intervalMs || 5000;
 
-        // 出餐配置（默认：下单后180~240秒随机出餐）
+        // 出餐配置（默认：下单后240~300秒随机出餐）
         window.__cookConfig = window.__cookConfig || {
             strategy: 'after_order',
-            afterOrderMinSec: 180,
-            afterOrderMaxSec: 240,
+            afterOrderMinSec: 240,
+            afterOrderMaxSec: 300,
             beforeDeadlineMinSec: 120,
             beforeDeadlineMaxSec: 180
         };
@@ -766,7 +766,7 @@
             '<div class="waimai-section">',
             '  <div class="waimai-section-title"><span>⏰ 出餐策略</span></div>',
             '  <div class="waimai-strategy">',
-            '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="180" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="240" min="0" max="1800" style="width:50px"> 秒</label>',
+            '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="240" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="300" min="0" max="1800" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="manual"> 手动出餐</label>',
             '  </div>',
@@ -796,7 +796,7 @@
         var radios = container.querySelectorAll('input[name="waimai-strategy"]');
         radios.forEach(function(r) {
             r.addEventListener('change', function() {
-                window.__cookConfig = window.__cookConfig || { strategy: 'after_order', afterOrderMinSec: 180, afterOrderMaxSec: 240, beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180 };
+                window.__cookConfig = window.__cookConfig || { strategy: 'after_order', afterOrderMinSec: 240, afterOrderMaxSec: 300, beforeDeadlineMinSec: 120, beforeDeadlineMaxSec: 180 };
                 window.__cookConfig.strategy = this.value;
                 panelLog('🔄 策略已切换为: ' + (this.value === 'manual' ? '手动出餐' : this.value === 'before_deadline' ? '建议出餐前' : '下单后'), 'blue');
             });
@@ -813,14 +813,14 @@
                        '下单后' + c.afterOrderMinSec + '~' + c.afterOrderMaxSec + '秒';
             panelLog('⚙️ 出餐配置已更新: ' + desc, 'blue');
         }
-        if (afterMinInput) afterMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMinSec = parseInt(this.value) || 180; logConfigChange(); });
-        if (afterMaxInput) afterMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMaxSec = parseInt(this.value) || 240; logConfigChange(); });
+        if (afterMinInput) afterMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMinSec = parseInt(this.value) || 240; logConfigChange(); });
+        if (afterMaxInput) afterMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.afterOrderMaxSec = parseInt(this.value) || 300; logConfigChange(); });
         if (beforeMinInput) beforeMinInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMinSec = parseInt(this.value) || 120; logConfigChange(); });
         if (beforeMaxInput) beforeMaxInput.addEventListener('change', function() { window.__cookConfig = window.__cookConfig || {}; window.__cookConfig.beforeDeadlineMaxSec = parseInt(this.value) || 180; logConfigChange(); });
         // 从已有配置回填面板输入值
         if (window.__cookConfig) {
-            if (afterMinInput) afterMinInput.value = window.__cookConfig.afterOrderMinSec || 180;
-            if (afterMaxInput) afterMaxInput.value = window.__cookConfig.afterOrderMaxSec || 240;
+            if (afterMinInput) afterMinInput.value = window.__cookConfig.afterOrderMinSec || 240;
+            if (afterMaxInput) afterMaxInput.value = window.__cookConfig.afterOrderMaxSec || 300;
             if (beforeMinInput) beforeMinInput.value = window.__cookConfig.beforeDeadlineMinSec || 120;
             if (beforeMaxInput) beforeMaxInput.value = window.__cookConfig.beforeDeadlineMaxSec || 180;
             var currentStrategy = window.__cookConfig.strategy || 'after_order';
@@ -1065,8 +1065,8 @@
         // 确保配置已初始化
         window.__cookConfig = window.__cookConfig || {
             strategy: 'after_order',
-            afterOrderMinSec: 180,
-            afterOrderMaxSec: 240,
+            afterOrderMinSec: 240,
+            afterOrderMaxSec: 300,
             beforeDeadlineMinSec: 120,
             beforeDeadlineMaxSec: 180
         };
@@ -1092,8 +1092,8 @@
         var afterMaxEl = document.getElementById('waimai-after-max-sec');
         var beforeMinEl = document.getElementById('waimai-before-min-sec');
         var beforeMaxEl = document.getElementById('waimai-before-max-sec');
-        if (afterMinEl) config.afterOrderMinSec = parseInt(afterMinEl.value) || 180;
-        if (afterMaxEl) config.afterOrderMaxSec = parseInt(afterMaxEl.value) || 240;
+        if (afterMinEl) config.afterOrderMinSec = parseInt(afterMinEl.value) || 240;
+        if (afterMaxEl) config.afterOrderMaxSec = parseInt(afterMaxEl.value) || 300;
         if (beforeMinEl) config.beforeDeadlineMinSec = parseInt(beforeMinEl.value) || 120;
         if (beforeMaxEl) config.beforeDeadlineMaxSec = parseInt(beforeMaxEl.value) || 180;
 
