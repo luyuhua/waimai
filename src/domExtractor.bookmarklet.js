@@ -479,9 +479,9 @@
                             // 计算已用时
                             var elapsedSec = suggestedSec > 0 ? suggestedSec - remainingSec : 0;
 
-                            // 预订单处理：建议出餐时间前10分钟视为虚拟下单时间
+                            // 预订单处理：建议出餐时间前20分钟视为虚拟下单时间(给骑手早来留提前量)
                             if (isPreOrder && deadlineDate && remainingSec === 0) {
-                                var preOrderVirtualStart = new Date(deadlineDate.getTime() - 10 * 60 * 1000);
+                                var preOrderVirtualStart = new Date(deadlineDate.getTime() - 20 * 60 * 1000);
                                 if (Date.now() < preOrderVirtualStart.getTime()) {
                                     elapsedSec = 0;
                                 } else {
@@ -510,7 +510,7 @@
                                 var aoMinSec = Math.min(config.afterOrderMinSec, config.afterOrderMaxSec);
                                 var aoMaxSec = Math.max(config.afterOrderMinSec, config.afterOrderMaxSec);
                                 if (isPreOrder && deadlineDate && remainingSec === 0) {
-                                    var preOrderVirtualStart = new Date(deadlineDate.getTime() - 10 * 60 * 1000);
+                                    var preOrderVirtualStart = new Date(deadlineDate.getTime() - 20 * 60 * 1000);
                                     var targetSec = aoMinSec + Math.round(Math.random() * (aoMaxSec - aoMinSec));
                                     var virtualDelayMs = targetSec * 1000;
                                     delay = Math.max(1000, preOrderVirtualStart.getTime() + virtualDelayMs - Date.now());
