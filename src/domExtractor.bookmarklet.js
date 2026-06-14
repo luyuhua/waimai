@@ -236,7 +236,15 @@
         }
 
         // 按序号从新到旧排序（序号大的在前）
-        orders.sort((a, b) => (b.orderIndex || 0) - (a.orderIndex || 0));
+        orders.sort(function(a, b) {
+            // 第一组:待出餐/待接单 → 第二组:其他(已出餐/已送达/已取消)
+            var aUrgent = (a.status === 'pending_cook' || a.status === 'pending_accept') ? 0 : 1;
+            var bUrgent = (b.status === 'pending_cook' || b.status === 'pending_accept') ? 0 : 1;
+            if (aUrgent !== bUrgent) return aUrgent - bUrgent;
+            // 组内按 deliverTime 字符串字典序(空串自然排前,便于观察无送达时间的订单)
+            var cmp = a.deliverTime < b.deliverTime ? -1 : a.deliverTime > b.deliverTime ? 1 : 0;
+            return aUrgent === 0 ? cmp : -cmp;
+        });
 
         return orders;
     };
