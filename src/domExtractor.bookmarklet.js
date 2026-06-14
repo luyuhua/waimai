@@ -680,6 +680,9 @@
             '.waimai-order-detail { font-size: 12px; color: #888; padding-left: 4px; }',
             '.waimai-order-detail .timer { color: #f59e0b; font-weight: bold; }',
             '.waimai-order-detail .done { color: #4ade80; }',
+            '.waimai-detail-toggle { font-size: 10px; color: #667eea; cursor: pointer; margin-left: auto; white-space: nowrap; user-select: none; }',
+            '.waimai-detail-toggle:hover { color: #8b9cf7; }',
+            '.waimai-order-debug { font-size: 11px; color: #888; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 6px 8px; margin-top: 4px; line-height: 1.5; display: none; }',
             '#waimai-order-list { max-height: 150px; overflow-y: auto; }',
             '#waimai-order-list.expanded { max-height: 400px; }',
             '.waimai-strategy { margin-top: 6px; }',
@@ -931,17 +934,109 @@
             var riderTag = o.riderStatus ? ' <span class="waimai-tag waimai-tag-rider">' + o.riderStatus + '</span>' : '';
             var name = o.customerName || '';
 
+            // 取值辅助:空值用占位,保证所有字段都展示
+            var v = function(val, fallback) {
+                if (val === 0) return '0';
+                if (val === false) return '否';
+                if (val === true) return '是';
+                if (val === undefined || val === null || val === '') return fallback || '-';
+                return val;
+            };
+
+            // 1) 📋 基础信息
+            var baseInfo = '订单号: ' + v(o.orderNo) + ' | 序号: #' + v(o.orderIndex) +
+                ' | 状态枚举: ' + v(o.status) + ' | 状态展示: ' + v(o.statusText);
+
+            // 2) ⏰ 时间信息
+            var timeInfo = '下单时间: ' + v(o.orderTime) +
+                ' | 送达时间: ' + v(o.deliverTime) +
+                ' | 建议出餐时长: ' + v(o.suggestedCookTime) + ' (' + v(o.suggestedCookTimeSec, 0) + '秒)' +
+                ' | 建议出餐时间点: ' + v(o.suggestedCookDeadline) +
+                ' | 剩余时间: ' + v(o.cookRemainingTime) +
+                ' | 出餐用时: ' + v(o.cookTime);
+
+            // 3) 👤 用户信息
+            var userInfo = '顾客: ' + v(o.customerName) +
+                ' | 手机尾号: ' + v(o.phoneTail) +
+                ' | 门店新客: ' + v(o.isNewCustomer, '否') +
+                ' | 历史下单: ' + v(o.customerOrderCount, 0) + '次' +
+                ' | 收藏店铺: ' + v(o.isFavCustomer, '否') +
+                ' | 骑手姓名: ' + v(o.riderName) +
+                ' | 骑手状态: ' + v(o.riderStatus);
+
+            // 4) 📦 配送 & 商品
+            var deliveryInfo = '配送方式: ' + v(o.deliveryType, '-') +
+                (o.deliveryType === 'meituan' ? ' (美团配送)' : '') +
+                ' | 闪电送: ' + v(o.isFlashDelivery, '否') +
+                ' | 预订单: ' + v(o.isPreOrder, '否');
+            var productsInfo = '商品列表: ' + (
+                (o.products && o.products.length)
+                    ? o.products.map(function(p) {
+                        return p.name + ' ¥' + p.unitPrice.toFixed(2) + ' x ' + p.quantity + ' = ¥' + p.totalPrice.toFixed(2);
+                    }).join('; ')
+                    : '-'
+            );
+            var remarkInfo = '备注: ' + v(o.remark);
+
+            // 5) 💰 费用信息
+            var feeInfo = '预计收入: ¥' + v(o.estimatedIncome, 0) +
+                ' | 佣金比例: ' + v(o.commissionRate, 0) + '%' +
+                ' | 佣金: ¥' + v(o.commissionAmount, 0) +
+                ' | 配送补贴: ¥' + v(o.deliverySubsidy, 0) +
+                ' | 订单优惠: ¥' + v(o.orderDiscount, 0) +
+                ' | 打包费: ¥' + v(o.packFee, 0);
+
+            // 6) 🔘 操作按钮
+            var buttonsInfo = '操作按钮: ' + (
+                (o.buttons && o.buttons.length)
+                    ? o.buttons.map(function(b) { return b.text + '(' + b.tag + (b.className ? '.' + b.className.split(' ')[0] : '') + ')'; }).join(', ')
+                    : '-'
+            );
+
+            var debugInfo = [
+                '📋 ' + baseInfo,
+                '⏰ ' + timeInfo,
+                '👤 ' + userInfo,
+                '📦 ' + deliveryInfo,
+                '   ' + productsInfo,
+                '   ' + remarkInfo,
+                '💰 ' + feeInfo,
+                '🔘 ' + buttonsInfo
+            ].join('\n');
+
             html += '<div class="waimai-order-item">' +
                 '<div class="waimai-order-top">' +
                 '<span class="waimai-order-id">#' + (o.orderIndex || '?') + '</span> ' +
                 '<span class="waimai-order-name">' + name + '</span> ' +
                 statusTag + riderTag +
+                '<span class="waimai-detail-toggle" onclick="var d=this.parentElement.parentElement.querySelector(\'.waimai-order-debug\');var v=d.style.display===\'none\'||!d.style.display;d.style.display=v?\'block\':\'none\';this.textContent=v?\'收起 ▾\':\'详情 ▸\'">详情 ▸</span>' +
                 '</div>' +
                 detailHtml +
+                '<div class="waimai-order-debug" data-orderno="' + (o.orderNo || '') + '" style="white-space: pre-wrap;">' + debugInfo + '</div>' +
                 '</div>';
         });
 
+        // 保留展开状态:刷新前收集当前展开的 orderNo
+        var expandedOrderNos = {};
+        var currentDebugEls = listEl.querySelectorAll('.waimai-order-debug');
+        for (var e = 0; e < currentDebugEls.length; e++) {
+            if (currentDebugEls[e].style.display === 'block') {
+                var eno = currentDebugEls[e].getAttribute('data-orderno');
+                if (eno) expandedOrderNos[eno] = true;
+            }
+        }
+
         listEl.innerHTML = html;
+
+        // 恢复展开状态
+        for (var eno in expandedOrderNos) {
+            var debugEl = listEl.querySelector('.waimai-order-debug[data-orderno="' + eno + '"]');
+            if (debugEl) {
+                debugEl.style.display = 'block';
+                var tog = debugEl.parentElement.querySelector('.waimai-detail-toggle');
+                if (tog) tog.textContent = '收起 ▾';
+            }
+        }
         if (badge) badge.textContent = pendingCount;
         window.__pendingCount = pendingCount;
 
