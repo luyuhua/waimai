@@ -1,37 +1,43 @@
 /**
  * @file 页面结构化数据提取工具（页面分析器）
- * @description 独立模块，与 V1 主业务脚本解耦。
- *              用于把任意页面的 DOM 转成结构化数据 + 可交互元素索引，
+ * @description 独立模块,不依赖任何其他脚本。
+ *              用于把任意页面的 DOM 转成结构化数据 + 可交互元素索引,
  *              方便开发者观察页面有哪些可点击/可操作的元素。
  *              提取逻辑移植自 alibaba/page-agent。
  *
- * 加载方式：被 domExtractor.bookmarklet.js 依赖调用，
- *           也可单独作为浏览器脚本加载。
+ * 加载方式:
+ *   - 可被 domExtractor.loader.js 链式加载(先于美团业务脚本)
+ *   - 也可单独作为浏览器脚本加载,功能完整
  *
- * 暴露的全局 API：
- *   - window.domExtractor(args)        → { rootId, map }
+ * 暴露的全局 API:
+ *   - window.domExtractor(args)          → { rootId, map }
  *   - window.getInteractiveElements(map) → Array<{id, tagName, text, className, id_attr, ref}>
  *   - window.findElementByText(map, text) → {id, node} | null
- *   - window.printDomResults(result)   → 在 console 打印结果 + 存 window.__domResult
+ *   - window.printDomResults(result)     → 在 console 打印结果 + 存 window.__domResult
  *
- * 行为约定：
+ * 行为约定:
  *   - 第一次加载时自动执行一次提取 + 打印
- *   - 已加载时再次执行只重跑提取（不重置全局状态）
+ *   - 已加载时再次执行只重跑提取(不重置全局状态)
+ *   - 防重复标志:window.__pageAnalyzerLoaded
  */
 
 (function () {
     'use strict';
 
     // 防止重复执行：已加载时仅重新执行提取（不重新拉取脚本）
-    if (window.__domExtractorLoaded) {
-        console.log('🔄 domExtractor 已加载，重新执行提取...');
+    if (window.__pageAnalyzerLoaded) {
+        console.log('🔄 pageAnalyzer 已加载，重新执行提取...');
         if (window.domExtractor && window.printDomResults) {
             const result = window.domExtractor({ viewportExpansion: -1 });
             window.printDomResults(result);
         }
         return;
     }
-    window.__domExtractorLoaded = true;
+    window.__pageAnalyzerLoaded = true;
+
+    console.log('%c🛵 页面分析工具 (pageAnalyzer)', 'color: #667eea; font-size: 20px; font-weight: bold;');
+    console.log('%c基于 page-agent 开源项目', 'color: #888; font-size: 12px;');
+    console.log('');
 
     // ==================== 核心 DOM 提取代码 ====================
 
@@ -385,9 +391,9 @@
         console.log('  - window.__interactiveElements (可交互元素)');
     };
 
-    // ==================== 首次执行由加载方触发 ====================
-    // 单独加载本文件时不会自动跑提取，调用方应在加载完成后执行：
-    //   const result = window.domExtractor({ viewportExpansion: -1 });
-    //   window.printDomResults(result);
-    // 这样可以避免与主脚本重复执行。
+    // ==================== 首次加载自动执行 ====================
+    // 单独加载本文件时也会自动跑一次分析,符合"页面分析工具"独立可用的定位。
+    // 主脚本(美团自动出餐)不调用本文件的任何函数,完全解耦。
+    const result = window.domExtractor({ viewportExpansion: -1 });
+    window.printDomResults(result);
 })();

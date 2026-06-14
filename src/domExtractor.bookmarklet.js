@@ -1,15 +1,14 @@
 /**
  * @file 美团外卖自动出餐助手 V1 - 主书签脚本
- * @description 依赖 pageAnalyzer.js（先于本文件加载）。
- *              本文件只负责美团订单的自动出餐业务，不包含 DOM 提取算法。
+ * @description 美团外卖商家的自动出餐业务。不依赖 pageAnalyzer.js
+ *              (loader 会在前面加载它用于页面分析,业务本身不引用其 API)。
  *
- * 加载链路：
- *   1. domExtractor.loader.js 加载 pageAnalyzer.js
+ * 加载链路:
+ *   1. domExtractor.loader.js 加载 pageAnalyzer.js (页面分析工具,独立)
  *   2. domExtractor.loader.js 加载本文件
- *   3. 本文件 IIFE 启动时调一次 domExtractor + printDomResults（页面分析）
- *   4. 然后跑美团自动出餐业务
+ *   3. 本文件只做美团订单提取 + 出餐业务
  *
- * 暴露的全局 API：
+ * 暴露的全局 API:
  *   - window.extractOrders()       —— 提取当前页面所有订单
  *   - window.clickOrderButton(...)  —— 按订单号点击按钮
  *   - window.autoCookAll()          —— 一键出餐所有"待出餐"订单
@@ -24,8 +23,7 @@
     'use strict';
 
     // 启动 banner
-    console.log('%c🛵 美团外卖自动出餐助手 - DOM 提取工具', 'color: #667eea; font-size: 20px; font-weight: bold;');
-    console.log('%c基于 page-agent 开源项目', 'color: #888; font-size: 12px;');
+    console.log('%c🛵 美团外卖自动出餐助手', 'color: #667eea; font-size: 20px; font-weight: bold;');
     console.log('');
 
     // ==================== 打印美团订单表格 ====================
@@ -65,14 +63,6 @@
         console.log(JSON.stringify(orders, null, 2));
     }
     window.printOrders = printOrders;
-
-    // ==================== 首次启动：跑一次页面分析 ====================
-    if (window.domExtractor && window.printDomResults) {
-        const result = window.domExtractor({ viewportExpansion: -1 });
-        window.printDomResults(result);
-    } else {
-        console.error('❌ pageAnalyzer 未加载，请先加载 pageAnalyzer.js');
-    }
 
     // ==================== 美团订单提取 ====================
 
@@ -1092,6 +1082,16 @@
     var currentHost = window.location.hostname || '';
     var isMeituan = currentHost.indexOf('meituan') !== -1 || currentHost.indexOf('waimai') !== -1;
     if (isMeituan) {
+        // 首次启动:把当前订单打印到 console (不阻塞后续监控)
+        try {
+            if (window.extractOrders && window.printOrders) {
+                const initialOrders = window.extractOrders();
+                window.printOrders(initialOrders);
+            }
+        } catch (e) {
+            console.warn('⚠️ 首次订单打印失败:', e.message);
+        }
+
         createPanel();
         setTimeout(function() {
             monitorOrders(5000);

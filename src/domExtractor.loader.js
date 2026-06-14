@@ -1,13 +1,17 @@
 /**
  * @file 美团外卖自动出餐助手 V1 - Bookmarklet Loader
- * @description 按顺序加载两个脚本：先加载页面分析器（pageAnalyzer.js），
- *              再加载主书签脚本（domExtractor.bookmarklet.js）。
+ * @description 按顺序链式加载两个相互独立的脚本:
+ *              先加载页面分析器(pageAnalyzer.js),
+ *              再加载主书签脚本(domExtractor.bookmarklet.js)。
  *
- *              加载链路：
- *                ① pageAnalyzer.js        — DOM 提取 + 打印（页面分析工具）
- *                ② domExtractor.bookmarklet.js — 美团自动出餐主业务
+ *              加载链路:
+ *                ① pageAnalyzer.js             — 页面分析工具(独立,自带首次执行)
+ *                ② domExtractor.bookmarklet.js — 美团自动出餐业务(独立,不引用 pageAnalyzer)
  *
- *              书签的 href 只放短小的 loader 代码，便于部署到 GitHub Pages。
+ *              两个脚本无相互依赖,loader 只保证 pageAnalyzer 先加载
+ *              (这样 pageAnalyzer 的 console 输出会先出现)。
+ *
+ *              书签的 href 只放短小的 loader 代码,便于部署到 GitHub Pages。
  *
  * @usage 书签 javascript:
  *   javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t='+Date.now();document.body.appendChild(s);})()
