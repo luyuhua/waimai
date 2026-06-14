@@ -862,9 +862,11 @@
             var colorClass = color ? 'waimai-log-' + color : '';
             entry.innerHTML = '<span style="color:#666">' + now + '</span> <span class="' + colorClass + '">' + message + '</span>';
             logArea.appendChild(entry);
-            // 最多保留 100 条
-            while (logArea.childElementCount > 100) {
-                logArea.removeChild(logArea.firstChild);
+            // 操作/心跳 各 100 条独立上限,各清各的,避免互相冲
+            var sameType = logArea.querySelectorAll(category === 'heartbeat' ? '.waimai-log-hb' : '.waimai-log-op');
+            while (sameType.length > 100) {
+                sameType[0].remove();
+                sameType = logArea.querySelectorAll(category === 'heartbeat' ? '.waimai-log-hb' : '.waimai-log-op');
             }
             logArea.scrollTop = logArea.scrollHeight;
         }
