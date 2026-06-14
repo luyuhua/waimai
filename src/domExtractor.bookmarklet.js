@@ -564,7 +564,7 @@
                 var emoji = pendingCount > 0 ? '🔴' : '✅';
                 var timerCount = window.__cookTimers ? Object.keys(window.__cookTimers).length : 0;
                 var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
-                panelLog(emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray');
+                panelLog(emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray', 'heartbeat');
             }
         }
 
@@ -701,6 +701,11 @@
             '.waimai-log-blue { color: #60a5fa; }',
             '.waimai-log-orange { color: #f59e0b; }',
             '.waimai-log-gray { color: #9ca3af; }',
+            '.waimai-log-tabs { display: flex; gap: 2px; margin-bottom: 6px; }',
+            '.waimai-log-tab { font-size: 11px; padding: 2px 10px; border-radius: 3px; cursor: pointer; color: #888; background: rgba(255,255,255,0.05); }',
+            '.waimai-log-tab:hover { color: #ccc; }',
+            '.waimai-log-tab.active { color: #fff; background: rgba(102,126,234,0.3); }',
+            '.waimai-log-entry.hidden { display: none; }',
             '#waimai-log-area::-webkit-scrollbar { width: 6px; }',
             '#waimai-log-area::-webkit-scrollbar-track { background: transparent; }',
             '#waimai-log-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }',
@@ -764,6 +769,11 @@
             '    <span>📝 日志</span>',
             '    <button onclick="document.getElementById(\'waimai-log-area\').innerHTML=\'\';">清空</button>',
             '  </div>',
+            '  <div class="waimai-log-tabs">',
+            '    <span class="waimai-log-tab active" data-filter="all" onclick="window.filterLogs(\'all\', this)">全部</span>',
+            '    <span class="waimai-log-tab" data-filter="op" onclick="window.filterLogs(\'op\', this)">操作</span>',
+            '    <span class="waimai-log-tab" data-filter="hb" onclick="window.filterLogs(\'hb\', this)">心跳</span>',
+            '  </div>',
             '  <div id="waimai-log-area"></div>',
             '</div>',
         ].join('');
@@ -809,8 +819,11 @@
 
     /**
      * 面板日志输出
+     * @param {string} message
+     * @param {string} color - red/green/blue/orange/gray
+     * @param {string} [category] - 'heartbeat' 表示心跳日志,其他视为操作日志
      */
-    window.panelLog = function(message, color) {
+    window.panelLog = function(message, color, category) {
         // 保留 console 输出
         var styleMap = { red: 'red', green: 'green', blue: '#667eea', orange: '#f59e0b', gray: '#888' };
         var consoleStyle = '';
@@ -825,6 +838,15 @@
         if (logArea) {
             var entry = document.createElement('div');
             entry.className = 'waimai-log-entry';
+            if (category === 'heartbeat') entry.classList.add('waimai-log-hb');
+            else entry.classList.add('waimai-log-op');
+
+            // 写入时即按当前 tab 过滤,避免点击 tab 时全量遍历
+            var activeTab = document.querySelector('.waimai-log-tab.active');
+            var currentFilter = activeTab ? activeTab.getAttribute('data-filter') : 'all';
+            if (currentFilter === 'op' && category === 'heartbeat') entry.classList.add('hidden');
+            if (currentFilter === 'hb' && category !== 'heartbeat') entry.classList.add('hidden');
+
             var now = new Date().toLocaleTimeString();
             var colorClass = color ? 'waimai-log-' + color : '';
             entry.innerHTML = '<span style="color:#666">' + now + '</span> <span class="' + colorClass + '">' + message + '</span>';
@@ -834,6 +856,27 @@
                 logArea.removeChild(logArea.firstChild);
             }
             logArea.scrollTop = logArea.scrollHeight;
+        }
+    };
+
+    /**
+     * 过滤日志(切换 tab)
+     */
+    window.filterLogs = function(filter, tabEl) {
+        var tabs = document.querySelectorAll('.waimai-log-tab');
+        for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); }
+        if (tabEl) tabEl.classList.add('active');
+
+        var entries = document.querySelectorAll('#waimai-log-area .waimai-log-entry');
+        for (var i = 0; i < entries.length; i++) {
+            var el = entries[i];
+            if (filter === 'all') {
+                el.classList.remove('hidden');
+            } else if (filter === 'op') {
+                el.classList.toggle('hidden', el.classList.contains('waimai-log-hb'));
+            } else if (filter === 'hb') {
+                el.classList.toggle('hidden', !el.classList.contains('waimai-log-hb'));
+            }
         }
     };
 
