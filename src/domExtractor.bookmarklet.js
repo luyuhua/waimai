@@ -573,7 +573,7 @@
                 var emoji = pendingCount > 0 ? '🔴' : '✅';
                 var timerCount = window.__cookTimers ? Object.keys(window.__cookTimers).length : 0;
                 var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
-                panelLog(emoji + ' [' + now + '] 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray', 'heartbeat');
+                panelLog(emoji + ' 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray', 'heartbeat');
             }
         }
 
