@@ -381,6 +381,7 @@
         }
         window.__knownOrders = window.__knownOrders || new Set();
         window.__monitorCheckCount = 0;
+        window.__orderStatusMap = {};
 
         function getIframeDoc() {
             if (window.self !== window.top) return document;
@@ -417,11 +418,11 @@
             var now = new Date().toLocaleTimeString();
 
             // 重置状态追踪（首次运行时）
-            window.__orderStatusMap = {};
 
             allOrders.forEach(function(order) {
                 var orderNo = order.orderNo;
                 if (!orderNo) return;
+                var orderLabel = '#' + (order.orderIndex || '?') + ' ' + (order.customerName || '顾客');
 
                 // 直接用 OrderData 字段,不再各自解析
                 var currentStatus = order.status;
@@ -440,7 +441,7 @@
                 if (statusChanged && !isPendingCook && window.__cookTimers[orderNo]) {
                     clearTimeout(window.__cookTimers[orderNo].timerId);
                     delete window.__cookTimers[orderNo];
-                    panelLog('⏹️ 订单 ' + orderNo + ' 状态变化为' + (cookLabel[currentStatus] || currentStatus) + '，取消定时出餐', 'gray');
+                    panelLog('⏹️ ' + orderLabel + ' 状态变化为' + (cookLabel[currentStatus] || currentStatus) + '，取消定时出餐', 'gray');
                 }
 
                 // 新订单 或 状态变为"待出餐"
@@ -493,7 +494,7 @@
                             var delay;
                             var delayDesc;
                             if (config.strategy === 'manual') {
-                                panelLog('🖐️ 订单 ' + orderNo + ' 手动出餐模式，等待人工操作', 'gray');
+                                panelLog('🖐️ ' + orderLabel + ' 手动出餐模式，等待人工操作', 'gray');
                             } else if (config.strategy === 'before_deadline') {
                                 var bdMinSec = Math.min(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
                                 var bdMaxSec = Math.max(config.beforeDeadlineMinSec, config.beforeDeadlineMaxSec);
@@ -523,9 +524,9 @@
 
                             if (config.strategy !== 'manual') {
                                 var targetTime = new Date(Date.now() + delay);
-                                var delaySec = Math.round(delay / 1000); if (delay <= 1000) { panelLog('⚠️ 订单 ' + orderNo + ' 出餐时间已过或即将到达，立即出餐', 'orange'); }
+                                var delaySec = Math.round(delay / 1000); if (delay <= 1000) { panelLog('⚠️ ' + orderLabel + ' 出餐时间已过或即将到达，立即出餐', 'orange'); }
 
-                                (function(no) {
+                                (function(no, label) {
                                     var timerId = setTimeout(function() {
                                         // 重新查找订单卡片（DOM 可能已变）
                                         var doc2 = getIframeDoc();
@@ -539,7 +540,7 @@
                                                     var txt2 = btns2[b].innerText.trim();
                                                     if (txt2 === '出餐完成' || txt2 === '出餐' || txt2 === '确认出餐') {
                                                         btns2[b].click();
-                                                        panelLog('✅ 已自动出餐: 订单 ' + no, 'green');
+                                                        panelLog('✅ 已自动出餐: ' + label, 'green');
                                                         break;
                                                     }
                                                 }
@@ -553,13 +554,13 @@
 
                                     var minStr = Math.floor(delaySec / 60);
                                     var secStr = delaySec % 60;
-                                    panelLog('⏰ 订单 ' + no + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）', 'orange');
+                                    panelLog('⏰ ' + label + ' 将在 ' + (minStr > 0 ? minStr + '分' : '') + secStr + '秒后自动出餐（' + targetTime.toLocaleTimeString() + '）', 'orange');
                                     if (isPreOrder && deadlineDate) {
                                         panelLog('   📋 预订单 | 建议出餐 ' + suggestedCookDeadline + ' | 策略: ' + delayDesc, 'blue');
                                     } else if (suggestedSec > 0 && remainingSec > 0) {
                                         panelLog('   建议时长 ' + suggestedSec + '秒 | 已用 ' + elapsedSec + '秒 | 剩余 ' + remainingSec + '秒', 'gray');
                                     }
-                                })(orderNo);
+                                })(orderNo, orderLabel);
                             }
                         }
                     }
