@@ -427,7 +427,7 @@
                 var currentStatus = order.status;
                 var riderStatus = order.riderStatus;
                 var prevStatus = window.__orderStatusMap[orderNo];
-                var isNew = !window.__knownOrders.has(orderNo);
+                var isNew = !(orderNo in window.__orderStatusMap);
                 var statusChanged = prevStatus && prevStatus !== currentStatus;
 
                 window.__knownOrders.add(orderNo);
