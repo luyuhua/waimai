@@ -417,7 +417,7 @@
             var now = new Date().toLocaleTimeString();
 
             // 重置状态追踪（首次运行时）
-            if (!window.__orderStatusMap) window.__orderStatusMap = {};
+            window.__orderStatusMap = {};
 
             allOrders.forEach(function(order) {
                 var orderNo = order.orderNo;
@@ -523,7 +523,7 @@
 
                             if (config.strategy !== 'manual') {
                                 var targetTime = new Date(Date.now() + delay);
-                                var delaySec = Math.round(delay / 1000);
+                                var delaySec = Math.round(delay / 1000); if (delay <= 1000) { panelLog('⚠️ 订单 ' + orderNo + ' 出餐时间已过或即将到达，立即出餐', 'orange'); }
 
                                 (function(no) {
                                     var timerId = setTimeout(function() {
@@ -643,6 +643,7 @@
                 clearTimeout(window.__cookTimers[no].timerId);
             });
             window.__cookTimers = {};
+            window.__orderStatusMap = {};
         }
         console.log('%c⏹️ 订单监控已停止，所有定时出餐任务已取消', 'color: #888; font-size: 14px;');
     };
