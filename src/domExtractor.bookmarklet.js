@@ -159,7 +159,7 @@
 
             // 建议出餐时间点（正常单为空；预订单如"06-09 11:43前"）
             data.suggestedCookDeadline = '';
-            const deadlineMatch = allText.match(/建议出餐时间(\d{2}-\d{2}\s+\d{2}:\d{2})前/);
+            const deadlineMatch = allText.match(/(?:参考|建议)出餐时间(\d{2}-\d{2}\s+\d{2}:\d{2})前/);
             if (deadlineMatch) {
                 data.suggestedCookDeadline = deadlineMatch[1].trim();
             }
@@ -549,7 +549,7 @@
                                         delete window.__cookTimers[no];
                                     }, delay);
 
-                                    window.__cookTimers[no] = { timerId: timerId, targetTime: targetTime, delay: delay };
+                                    window.__cookTimers[no] = { timerId: timerId, targetTime: targetTime, delay: delay, delayDesc: delayDesc, deadline: suggestedCookDeadline };
 
                                     var minStr = Math.floor(delaySec / 60);
                                     var secStr = delaySec % 60;
@@ -924,7 +924,7 @@
                 // 检查是否有定时器（每秒倒计时更新）
                 var timer = window.__cookTimers && window.__cookTimers[o.orderNo];
                 if (timer) {
-                    detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timer.targetTime.getTime() + '">⏰ ...</div>';
+                    var targetTimeStr = timer.targetTime.toLocaleTimeString(); var timerExtra = timer.deadline ? " | 出餐参考 " + timer.deadline : ""; detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timer.targetTime.getTime() + '" data-target-time="' + targetTimeStr + '" data-timer-extra="' + timerExtra + '">⏰ ...</div>';
                 } else if (!detailHtml && o.cookRemainingTime) {
                     detailHtml = '<div class="waimai-order-detail">⏳ 剩余 <span class="timer">' + o.cookRemainingTime + '</span></div>';
                 }
@@ -1159,12 +1159,12 @@
                     var endTime = parseInt(el.getAttribute('data-timer-end'));
                     var remain = Math.max(0, Math.round((endTime - Date.now()) / 1000));
                     if (remain <= 0) {
-                        el.innerHTML = '⏰ 出餐中...';
+                        var tt = el.getAttribute("data-target-time") || ""; var ex = el.getAttribute("data-timer-extra") || ""; el.innerHTML = '⏰ 出餐中（目标 ' + tt + ex + '）';
                         el.removeAttribute('data-timer-end');
                     } else {
                         var min = Math.floor(remain / 60);
                         var sec = remain % 60;
-                        el.innerHTML = '⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐';
+                        var tt2 = el.getAttribute('data-target-time') || ''; var ex2 = el.getAttribute('data-timer-extra') || ''; el.innerHTML = '⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐（目标 ' + tt2 + ex2 + '）';
                     }
                 }
             }, 1000);
