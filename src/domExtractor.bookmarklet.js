@@ -924,7 +924,7 @@
                 // 检查是否有定时器（每秒倒计时更新）
                 var timer = window.__cookTimers && window.__cookTimers[o.orderNo];
                 if (timer) {
-                    var targetTimeStr = timer.targetTime.toLocaleTimeString(); var timerExtra = timer.deadline ? " | 出餐参考 " + timer.deadline : ""; detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timer.targetTime.getTime() + '" data-target-time="' + targetTimeStr + '" data-timer-extra="' + timerExtra + '">⏰ ...</div>';
+                    var targetTimeStr = timer.targetTime.toLocaleTimeString(); var timerExtra = timer.deadline ? " | 出餐参考 " + timer.deadline : ""; detailHtml = '<div class="waimai-order-detail" data-timer-end="' + timer.targetTime.getTime() + '">⏰ ...</div>' + '<div class="waimai-order-detail" style="font-size:11px;color:#888;">目标 ' + targetTimeStr + timerExtra + '</div>';
                 } else if (!detailHtml && o.cookRemainingTime) {
                     detailHtml = '<div class="waimai-order-detail">⏳ 剩余 <span class="timer">' + o.cookRemainingTime + '</span></div>';
                 }
@@ -1159,12 +1159,12 @@
                     var endTime = parseInt(el.getAttribute('data-timer-end'));
                     var remain = Math.max(0, Math.round((endTime - Date.now()) / 1000));
                     if (remain <= 0) {
-                        var tt = el.getAttribute("data-target-time") || ""; var ex = el.getAttribute("data-timer-extra") || ""; el.innerHTML = '⏰ 出餐中（目标 ' + tt + ex + '）';
+                        el.innerHTML = '⏰ 出餐中...';
                         el.removeAttribute('data-timer-end');
                     } else {
                         var min = Math.floor(remain / 60);
                         var sec = remain % 60;
-                        var tt2 = el.getAttribute('data-target-time') || ''; var ex2 = el.getAttribute('data-timer-extra') || ''; el.innerHTML = '⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐（目标 ' + tt2 + ex2 + '）';
+                        el.innerHTML = '⏰ ' + (min > 0 ? min + '分' : '') + sec + '秒后出餐';
                     }
                 }
             }, 1000);
