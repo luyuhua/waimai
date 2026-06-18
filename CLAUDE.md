@@ -210,6 +210,16 @@ Key field paths:
 - **"未登录" in new window** is anti-fraud, not actual logout. Cookie is identical between main page and new window except for `isg` (anti-fraud token) value.
 - **Anti-fraud rewrites request URLs**: When captcha kicks in, the next `queryInProcessOrders` request gets rewritten to `/fulfill/weborder/queryInProcessOrders/_____tmd_____/punish?...&action=captcha` and the response is a captcha challenge instead of order data. The captcha URL pattern (`_____tmd_____/punish?x5secdata=...`) is the diagnostic for "I'm being rate-limited".
 
+### Polling and timing
+
+- **Official `queryInProcessOrders` polling interval is 120s** (from `getPollingStrategy: pollingInterval: 120000`). Same as our limit.
+- **120s is the floor for `queryInProcessOrders` polling.** Lower rates risk captcha.
+- **120s is also the practical floor for "after-order" auto-cook minimum delay.** Even if a user sets `afterOrderMinSec` lower than 120 in the panel, the script should clamp to ≥ 120s, because:
+  1. We won't *see* a new order until the next poll tick.
+  2. Firing `mealComplete` faster than the poll cycle wastes API calls and looks like a bot.
+  3. The 4-minute cook window still leaves comfortable buffer.
+- **No need to listen to `PushService.polling`** (long-poll for new-order push) — adds complexity, marginal latency win. Pure 120s polling is sufficient.
+
 ### All API endpoints seen in `app-api.shop.ele.me` (from `performance.getEntries()`)
 
 ```
