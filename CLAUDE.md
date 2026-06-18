@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 美团外卖自动出餐助手 (Meituan Waimai Auto-Cook Assistant) — a bookmarklet that injects into the Meituan merchant order page (`waimaie.meituan.com`) to automatically monitor orders and click the "cook complete" button on a timer.
 
-Now also supports **淘宝闪购 (饿了么商家版, `melody.shop.ele.me`)** with the `taobaoFlash.*` scripts.
+Now also supports **淘宝闪购 (饿了么商家版, `melody.shop.ele.me`)** with the `taobaoFlash.*` scripts. See [Taobao Flash development log](#taobao-flash-development-log) for the full history of architectural decisions and pitfalls.
 
 ## Repo structure
 
@@ -55,3 +55,107 @@ This is vanilla JS with no package.json, no build tools, no test framework. To v
 ```bash
 HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 git push origin main
 ```
+
+## Taobao Flash development log
+
+### Goal
+
+Add automatic cook-complete to Taobao Flash (饿了么商家版) merchant order page at `melody.shop.ele.me`. The order page uses a cross-domain iframe to render the order list.
+
+### Phase 1: DOM-based approach (failed)
+
+Initial attempt: query order cards from main page DOM using `[class*="order-card"]` selector and click buttons in the DOM.
+
+**Failure**: the order list lives inside a cross-origin iframe.
+
+- iframe src: `https://napos-order-pc.faas.ele.me/app/processing/all?shopId=...`
+- iframe id: `app_shop_order_processing`
+- main page: `https://melody.shop.ele.me/app/shop/<shopId>/order__processing#app.shop.order.processing`
+
+**Verified blockers** (all confirmed via console in Chrome DevTools):
+
+1. `iframe.contentDocument` is `null` — browser refuses cross-origin DOM access.
+2. `iframe.contentWindow.eval(...)` throws `SecurityError: Blocked a frame with origin "https://melody.shop.ele.me" from accessing a cross-origin frame`.
+3. `iframe.sandbox` is empty (no sandbox attribute), so this is a pure same-origin-policy block, not sandbox.
+4. New window approach (`window.open(iframe.src)`) shows "未登录" — Taobao's anti-fraud detects `window.opener` and refuses to load login state.
+
+### Phase 2: API-based approach (in progress, current path)
+
+Taobao exposes a JSON-RPC style API at `https://app-api.shop.ele.me/fulfill/weborder/<endpoint>/?method=<Service>.<method>`.
+
+**Verified call (200 OK from main page)**:
+
+```js
+const m = document.cookie.match(/ksid=([^;]+)/);
+const ksid = m ? m[1] : null;
+fetch('https://app-api.shop.ele.me/fulfill/weborder/unprocessedOrders/?method=PollingService.unprocessedOrders', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json;charset=UTF-8', 'x-shard': 'shopid=542990592' },
+  credentials: 'include',
+  body: JSON.stringify({
+    service: 'PollingService',
+    method: 'unprocessedOrders',
+    params: { shopId: 542990592 },
+    id: 'x' + Date.now(),
+    metas: { appVersion: '1.0.0', appName: 'melody', ksid, shopId: 542990592 },
+    ncp: '2.0.0'
+  })
+}).then(r => r.text()).then(console.log);
+```
+
+Returns `{"ncp":"2.0.0","id":"...","result":{"newOrderCount":0,"newOrderModelList":null,"noDisturbingInRest":null},"error":null}`.
+
+**Key facts**:
+
+- CORS works: `access-control-allow-origin: https://napos-order-pc.faas.ele.me` but main page can still call (browser tolerates) — verified live.
+- Auth: `ksid` from `document.cookie` + `_m_h5_tk` token. Without correct `metas.ksid` the call returns 401 `{"name":"UNAUTHORIZED","message":"未登录[2]"}`.
+- The request needs `x-shard: shopid=<shopId>` header (shopId is also in the URL query but the header is required).
+- Official polling interval: `PollingService.getPollingStrategy` returns `pollingInterval: 120000` (120s = 2 min). **Do not poll faster than this — Taobao has anti-fraud that triggers captcha on rapid repeated calls**.
+
+### Discovered endpoints (status as of 2026-06-18)
+
+| Endpoint | Status | Returns |
+|----------|--------|---------|
+| `OrderWebService.queryInProcessOrders` | 200, empty result | needs `queryType` param — values unknown |
+| `PollingService.unprocessedOrders` | 200, 0 orders | `newOrderCount`, `newOrderModelList`, `noDisturbingInRest` |
+| `PollingService.nonCoreOrders` | 200, has counts | `preparingOrderCount: 2, riderAcceptOrderCount: 1, unprocessedBookingOrderCount: 1, waitingDeliverOrderCount: 2, bookingNotice: {count: 1, orderIds: ["..."]}` |
+| `PollingService.abnormalOrders` | 200, 0 | exception counts |
+| `PollingService.getPollingStrategy` | 200 | `pollingInterval: 120000` |
+| `ShopQueryService.queryDataByTab` | 200, result null | unknown — needs params |
+| `ShopQueryService.queryHeadDataByInProcessQueryType` | 200, error 10004 | needs `queryType` param |
+
+**Note**: `queryInProcessOrders` returned empty result even when the user has 4 active orders (2 preparing + 1 rider-accept + 1 booking). The endpoint is likely the right one but needs a different `queryType` value.
+
+### What still needs to be figured out
+
+1. **Valid `queryType` values** for `queryInProcessOrders` and `queryHeadDataByInProcessQueryType`. Values to try: `ALL`, `PREPARING`, `WAITING_DELIVER`, `RIDER_ACCEPT`, `BOOKING`, `PROCESSING`, `COOKING`, `WAITING_COOK`.
+2. **Order detail JSON structure** — `nonCoreOrders` only returns counts, not full order objects. The actual order schema (orderNo, status, customer, products, deadline) is still unknown.
+3. **Cook-complete API endpoint** — what RPC does the "上报出餐" button in the UI actually call? This is the most critical missing piece for the timer to actually fire.
+4. **Parameter signing** — `_m_h5_tk` is the time-based token, but is there a `sign` parameter? The 200 responses suggest the auth headers are sufficient.
+5. **Booking order IDs** — `bookingNotice.orderIds: ["8099020341832918320"]` gives a single ID; whether this is a real order ID or a notification ID needs verification.
+
+### Risk notes
+
+- **Anti-fraud / captcha**: Repeated rapid API calls (we triggered a captcha by querying 6 endpoints in one batch) trigger Taobao's anti-bot protection. User must back off, clear cookies or solve captcha. **Polling should be ≥ 120s**, and ideally batched (one call per cycle).
+- **Cookie sharing across subdomains**: `ksid` and `_m_h5_tk` are shared between `melody.shop.ele.me` and `napos-order-pc.faas.ele.me` (verified by comparing cookies from main page and iframe). So the auth model is "first-party subdomain", not "third-party iframe" — the cross-origin block is browser policy, not Taobao's choice.
+- **"未登录" in new window** is anti-fraud, not actual logout. Cookie is identical between main page and new window except for `isg` (anti-fraud token) value.
+
+### What works in the current code (taobaoFlash.bookmarklet.js)
+
+The `taobaoFlash.*` scripts are at **DOM-extraction stage**, not API stage. Current implementation:
+
+- `extractOrders()` queries `[class*="order-card"]` on `document` — returns 0 because cards live in cross-origin iframe.
+- `switchToOrderTab()` clicks the "订单处理" tab via `div[data-aspm-param]` (works in main page sidebar).
+- `createPanel()`, `panelLog()`, `updatePanelOrders()` copied from Meituan version with brand color `#ff6a00`.
+- `monitorOrders()` runs 5s polling — but finds no orders because extraction is broken. **Polling interval also needs to be raised to 120s**.
+- `isOnOrderTab()` was removed because the menu doesn't have a `selected`/`active` class.
+
+### Path forward
+
+1. Rewrite `extractOrders()` to call `queryInProcessOrders` API (with discovered `queryType`).
+2. Derive `orderNo`, `status`, `customer`, `products` from API JSON instead of DOM regex.
+3. Raise polling interval to 120s (match official `pollingInterval`).
+4. For cook-complete action, either:
+   - (a) find the API endpoint and call it directly, OR
+   - (b) navigate the main page URL to the iframe URL (with hash) and click — but login state is preserved when navigating within the same tab.
+5. Optional: postMessage from main page to iframe (iframe.contentWindow is accessible, even if contentDocument isn't) for cross-frame signaling, though Taobao's app doesn't listen to custom events.
