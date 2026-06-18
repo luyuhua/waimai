@@ -93,34 +93,48 @@
         }
         var url = API_BASE + endpoint + '/?method=' + service + '.' + method;
         var body = buildBody(service, method, params);
-        return fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json;charset=UTF-8',
-                'x-shard': 'shopid=' + shopId
-            },
-            credentials: 'include',
-            body: JSON.stringify(body)
-        }).then(function (resp) {
-            // 淘宝改写 URL 加 _____tmd_____/punish 是风控命中标志
-            if (resp.url && resp.url.indexOf('_____tmd_____/punish') !== -1) {
-                return { ok: false, captcha: true, error: '触发淘宝风控: ' + resp.url };
-            }
-            return resp.text().then(function (text) {
+        console.log('[apiCall]', service + '.' + method, '->', url);
+        return new Promise(function (resolve) {
+            // 用 XHR 替代 fetch:同盾/数美等风控 SDK 通常只 hook window.fetch,
+            // XHR 是浏览器内建 API,hook 风险小很多
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.withCredentials = true;  // 等同 fetch credentials: 'include'
+            xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+            xhr.setRequestHeader('x-shard', 'shopid=' + shopId);
+            xhr.onload = function () {
+                var respUrl = xhr.responseURL || url;
+                if (respUrl.indexOf('_____tmd_____/punish') !== -1) {
+                    resolve({ ok: false, captcha: true, error: '触发淘宝风控: ' + respUrl });
+                    return;
+                }
+                var text = xhr.responseText;
                 var data = null;
-                try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }; }
+                try { data = JSON.parse(text); } catch (e) { resolve({ ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }); return; }
                 if (data && data.error) {
                     var errStr = ((data.error.name || '') + ' ' + (data.error.message || '')).trim();
-                    // 401 / 未登录 / 验证 / 风控 / 滑动 都视为风控,不再轮询
                     if (/UNAUTHORIZED|未登录|验证|风控|滑动|机器|captcha|滑块/i.test(errStr)) {
-                        return { ok: false, captcha: true, error: '触发淘宝风控: ' + errStr };
+                        resolve({ ok: false, captcha: true, error: '触发淘宝风控: ' + errStr });
+                        return;
                     }
-                    return { ok: false, error: errStr || JSON.stringify(data.error) };
+                    resolve({ ok: false, error: errStr || JSON.stringify(data.error) });
+                    return;
                 }
-                return { ok: true, data: data };
-            });
-        }).catch(function (e) {
-            return { ok: false, error: '网络错误: ' + (e.message || e) };
+                resolve({ ok: true, data: data });
+            };
+            xhr.onerror = function () {
+                console.error('[apiCall] XHR onerror status=' + xhr.status + ' readyState=' + xhr.readyState);
+                resolve({ ok: false, error: '网络错误: XHR status=' + xhr.status + ' (可能被风控 SDK 拦截)' });
+            };
+            xhr.ontimeout = function () {
+                resolve({ ok: false, error: '网络超时' });
+            };
+            xhr.timeout = 30000;
+            try {
+                xhr.send(JSON.stringify(body));
+            } catch (e) {
+                resolve({ ok: false, error: 'XHR send 异常: ' + (e.message || e) });
+            }
         });
     }
 
