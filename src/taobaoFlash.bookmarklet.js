@@ -94,47 +94,41 @@
         var url = API_BASE + endpoint + '/?method=' + service + '.' + method;
         var body = buildBody(service, method, params);
         console.log('[apiCall]', service + '.' + method, '->', url);
-        return new Promise(function (resolve) {
-            // 用 XHR 替代 fetch:同盾/数美等风控 SDK 通常只 hook window.fetch,
-            // XHR 是浏览器内建 API,hook 风险小很多
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            xhr.withCredentials = true;  // 等同 fetch credentials: 'include'
-            xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
-            xhr.setRequestHeader('x-shard', 'shopid=' + shopId);
-            xhr.onload = function () {
-                var respUrl = xhr.responseURL || url;
-                if (respUrl.indexOf('_____tmd_____/punish') !== -1) {
-                    resolve({ ok: false, captcha: true, error: '触发淘宝风控: ' + respUrl });
-                    return;
-                }
-                var text = xhr.responseText;
+        // 用 fetch:XHR 在 Edge 上会被阿里霸下 hook 触发风控(status=200 后仍调 onerror),
+        // fetch 至少错误信息干净。风控拦截在 reject 路径上,我们的错误处理能识别。
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json;charset=UTF-8',
+                'x-shard': 'shopid=' + shopId
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        }).then(function (resp) {
+            if (resp.url && resp.url.indexOf('_____tmd_____/punish') !== -1) {
+                return { ok: false, captcha: true, error: '触发淘宝风控: ' + resp.url };
+            }
+            return resp.text().then(function (text) {
                 var data = null;
-                try { data = JSON.parse(text); } catch (e) { resolve({ ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }); return; }
+                try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }; }
                 if (data && data.error) {
                     var errStr = ((data.error.name || '') + ' ' + (data.error.message || '')).trim();
                     if (/UNAUTHORIZED|未登录|验证|风控|滑动|机器|captcha|滑块/i.test(errStr)) {
-                        resolve({ ok: false, captcha: true, error: '触发淘宝风控: ' + errStr });
-                        return;
+                        return { ok: false, captcha: true, error: '触发淘宝风控: ' + errStr };
                     }
-                    resolve({ ok: false, error: errStr || JSON.stringify(data.error) });
-                    return;
+                    return { ok: false, error: errStr || JSON.stringify(data.error) };
                 }
-                resolve({ ok: true, data: data });
-            };
-            xhr.onerror = function () {
-                console.error('[apiCall] XHR onerror status=' + xhr.status + ' readyState=' + xhr.readyState);
-                resolve({ ok: false, error: '网络错误: XHR status=' + xhr.status + ' (可能被风控 SDK 拦截)' });
-            };
-            xhr.ontimeout = function () {
-                resolve({ ok: false, error: '网络超时' });
-            };
-            xhr.timeout = 30000;
+                return { ok: true, data: data };
+            });
+        }).catch(function (e) {
+            var msg;
             try {
-                xhr.send(JSON.stringify(body));
-            } catch (e) {
-                resolve({ ok: false, error: 'XHR send 异常: ' + (e.message || e) });
-            }
+                if (e && e.status) msg = 'HTTP ' + e.status + ' ' + e.statusText;
+                else if (e && e.message) msg = e.message;
+                else msg = String(e);
+            } catch (inner) { msg = '未知错误'; }
+            console.error('[apiCall] catch:', e);
+            return { ok: false, error: '网络错误: ' + msg };
         });
     }
 
@@ -1051,8 +1045,21 @@
         }
 
         // 自动启动监控(120s,与官方轮询周期对齐,防风控)
+        // 冷启动:先发一次试探请求,失败就不开监控,避免 120s 循环反复触发风控
         setTimeout(function() {
-            window.monitorOrders(120000);
+            panelLog('🔍 冷启动: 试探性查询一次...', 'gray');
+            window.extractOrders().then(function (orders) {
+                if (window.__captchaTriggered) {
+                    panelLog('🚨 冷启动失败: 触发风控。脚本不启动监控,请在 Edge 手动操作该店铺 5-10 分钟(下个真实订单/接单)再重试', 'red');
+                    return;
+                }
+                if (orders === null) {
+                    panelLog('❌ 冷启动失败: 无法获取订单数据,脚本不启动监控', 'red');
+                    return;
+                }
+                panelLog('✅ 冷启动通过 (返回 ' + orders.length + ' 单),启动监控', 'green');
+                window.monitorOrders(120000);
+            });
         }, 1500);
     } else {
         createPanel();
