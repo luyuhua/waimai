@@ -116,23 +116,55 @@ Returns `{"ncp":"2.0.0","id":"...","result":{"newOrderCount":0,"newOrderModelLis
 
 | Endpoint | Status | Returns |
 |----------|--------|---------|
-| `OrderWebService.queryInProcessOrders` | 200, empty result | needs `queryType` param — values unknown |
-| `PollingService.unprocessedOrders` | 200, 0 orders | `newOrderCount`, `newOrderModelList`, `noDisturbingInRest` |
-| `PollingService.nonCoreOrders` | 200, has counts | `preparingOrderCount: 2, riderAcceptOrderCount: 1, unprocessedBookingOrderCount: 1, waitingDeliverOrderCount: 2, bookingNotice: {count: 1, orderIds: ["..."]}` |
+| `OrderWebService.queryInProcessOrders` | 200, full order list | **PRIMARY** — returns all in-process orders with full details |
+| `PollingService.unprocessedOrders` | 200, 0 orders | `newOrderCount`, `newOrderModelList` |
+| `PollingService.nonCoreOrders` | 200, has counts | tab statistics |
 | `PollingService.abnormalOrders` | 200, 0 | exception counts |
 | `PollingService.getPollingStrategy` | 200 | `pollingInterval: 120000` |
 | `ShopQueryService.queryDataByTab` | 200, result null | unknown — needs params |
 | `ShopQueryService.queryHeadDataByInProcessQueryType` | 200, error 10004 | needs `queryType` param |
 
-**Note**: `queryInProcessOrders` returned empty result even when the user has 4 active orders (2 preparing + 1 rider-accept + 1 booking). The endpoint is likely the right one but needs a different `queryType` value.
+### `queryInProcessOrders` JSON structure (verified 2026-06-18)
 
-### What still needs to be figured out
+`params: { shopId, queryType: 'ALL' }` works — returns an array of full order objects.
 
-1. **Valid `queryType` values** for `queryInProcessOrders` and `queryHeadDataByInProcessQueryType`. Values to try: `ALL`, `PREPARING`, `WAITING_DELIVER`, `RIDER_ACCEPT`, `BOOKING`, `PROCESSING`, `COOKING`, `WAITING_COOK`.
-2. **Order detail JSON structure** — `nonCoreOrders` only returns counts, not full order objects. The actual order schema (orderNo, status, customer, products, deadline) is still unknown.
-3. **Cook-complete API endpoint** — what RPC does the "上报出餐" button in the UI actually call? This is the most critical missing piece for the timer to actually fire.
-4. **Parameter signing** — `_m_h5_tk` is the time-based token, but is there a `sign` parameter? The 200 responses suggest the auth headers are sufficient.
-5. **Booking order IDs** — `bookingNotice.orderIds: ["8099020341832918320"]` gives a single ID; whether this is a real order ID or a notification ID needs verification.
+Top-level keys per order:
+```
+id, shopId, status, remindOrderType, activeTime, settledTime,
+orderBusinessType, header, headerExtraInfo, liabilityInfo,
+compensationInfo, compensationsInfo, reverseOrderInfo,
+afterSaleViewModel, abnormalReportInfo, customerRemindInfo,
+userInfo, mealPreparationInfoOld, mealPreparationInfo,
+deliveryInfo, foodInfo, remarkInfo, settlementInfo, footer,
+grayFeature, printDataInfo, insuranceInfo, noDisturbingInRest,
+reissueDeliveryInfos, foodSafetyNegotiateInfo, compareDate,
+ticketOrderIds, ticketCode, processing
+```
+
+Key field paths:
+- `id` — order ID (e.g. `8095360342023930204`)
+- `header.daySn` — sequential number shown in UI (e.g. `25`)
+- `header.orderLatestStatus` — rider/order state (e.g. `骑士已取餐`, `商家已出餐`)
+- `header.orderPromptDesc` — delivery time hint (e.g. `22:39 前送达`)
+- `header.planDeliverTiming` — countdown seconds
+- `header.orderType` — `ORDER_NORMAL` or `BOOKING_ORDER_NORMAL`
+- `userInfo.consigneeName` — customer name (e.g. `Y**`, `鹿女士`)
+- `activeTime` — ISO datetime
+- `mealPreparationInfo.mealComplete` — `true` = already cooked, `false` = needs cooking
+- `mealPreparationInfo.showCompleteMealButton` — controls "上报出餐" button visibility
+- `mealPreparationInfo.enable` — whether button is enabled
+- `mealPreparationInfo.timeCountDownType` — `"stop"` or `"countdown"`
+- `mealPreparationInfo.minMealCompleteTimeCount` — seconds to minimum cook time (negative = overdue)
+- `mealPreparationInfo.suggestContentTip` — status text shown in UI
+- `foodInfo` — product list
+- `settlementInfo` — fee breakdown
+- `remarkInfo` — order notes
+
+**What still needs figuring out** (no longer 1-5, updated to reflect what we now know):
+
+1. **Cook-complete API endpoint** — what RPC does the "上报出餐" button call? The button only appears when `showCompleteMealButton` is truthy AND `mealComplete: false`. Need to capture this from Network panel when a real cooking-pending order arrives. Likely candidates: `OrderWebService.completeMeal`, `OrderWebService.reportCookComplete`, or similar — to be confirmed.
+2. **Booking order IDs vs notification IDs** — `bookingNotice.orderIds: ["8099020341832918320"]` from `nonCoreOrders`. Comparing with the full response, `8099020341832918320` IS a real order ID. Good — booking orders are in the same list.
+3. **Parameter signing** — `_m_h5_tk` is the time-based token. `ncp: 2.0.0` is the protocol version. The 200 responses work without additional `sign` field, so current auth is sufficient.
 
 ### Risk notes
 
