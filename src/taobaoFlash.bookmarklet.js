@@ -55,28 +55,6 @@
         return false;
     };
 
-    function isOnOrderTab() {
-        // 选中状态：通过 data-aspm-param 或高亮 class 判断
-        var selected = document.querySelector('div[data-aspm-param*="订单处理"]');
-        if (selected) {
-            // 检查是否有选中的样式 class
-            var className = selected.className || '';
-            if (className.includes('selected') || className.includes('active')) {
-                return true;
-            }
-        }
-        // fallback: 查找含"订单处理"且带 selected/active class 的元素
-        var allDivs = document.querySelectorAll('div');
-        for (var i = 0; i < allDivs.length; i++) {
-            var d = allDivs[i];
-            if (d.innerText && d.innerText.trim() === '订单处理') {
-                var cn = d.className || '';
-                if (cn.includes('selected') || cn.includes('active')) return true;
-            }
-        }
-        return false;
-    }
-
     // ==================== 订单提取 ====================
     // TODO: 等用户提供订单卡片 HTML 后补完
 
@@ -172,11 +150,6 @@
         function checkOrders() {
             window.__monitorCheckCount++;
 
-            if (!isOnOrderTab()) {
-                panelLog('⚠️ 不在「订单处理」tab，跳过本次检查', 'orange');
-                return;
-            }
-
             var allOrders = window.extractOrders ? window.extractOrders() : null;
             if (!allOrders || allOrders.length === 0) return;
 
@@ -191,9 +164,6 @@
                 panelLog(emoji + ' 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单', 'gray', 'heartbeat');
             }
         }
-
-        // 启动时先切到订单处理 tab
-        switchToOrderTab();
 
         var config = window.__cookConfig;
         var strategyDesc = config.strategy === 'manual' ? '手动出餐' : '下单后' + config.afterOrderMinSec + '~' + config.afterOrderMaxSec + '秒';
