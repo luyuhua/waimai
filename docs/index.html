@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>美团外卖自动出餐助手 V1 - 纯 DOM 模式</title>
+    <title>外卖自动出餐助手 - 支持美团 + 淘宝闪购</title>
     <style>
         * {
             margin: 0;
@@ -187,8 +187,8 @@
 <body>
     <div class="container">
         <div class="card">
-            <h1>🛵 美团外卖自动出餐助手</h1>
-            <p class="subtitle">纯 DOM 模式 · 自动识别订单状态 · 智能定时出餐</p>
+            <h1>🛵 外卖自动出餐助手</h1>
+            <p class="subtitle">纯 DOM 模式 · 自动识别订单状态 · 智能定时出餐 · 支持美团+淘宝闪购</p>
 
             <h2>📥 安装书签工具</h2>
 
@@ -207,7 +207,7 @@
                 <p style="margin-bottom:16px;">将下面的按钮<strong>拖拽</strong>(不是点击)到浏览器书签栏:</p>
                 <div class="center-box">
                     <a class="bookmarklet-btn"
-                       href="javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t='+Date.now();s.type='text/javascript';s.setAttribute('crossorigin','anonymous');s.onload=function(){console.log('Loading V1 bookmarklet...')};s.onerror=function(){console.error('Failed to load V1 script')};document.body.appendChild(s);})()"
+                       href="javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/bookmarklet.loader.js?t='+Date.now();s.type='text/javascript';s.setAttribute('crossorigin','anonymous');s.onload=function(){console.log('Loading V1 bookmarklet...')};s.onerror=function(){console.error('Failed to load V1 script')};document.body.appendChild(s);})()"
                        draggable="true"
                        onclick="return false;"
                        title="拖拽我到书签栏!">
@@ -220,8 +220,13 @@
             </div>
 
             <div class="step-box">
-                <div class="step-title">🚀 步骤 3：打开美团商家版,点击书签</div>
-                <p>访问 <strong>美团外卖商家版</strong>(<code>waimaie.meituan.com</code>)订单页面,点击书签栏中的「自动出餐 V1」,页面右下角会弹出悬浮控制面板。</p>
+                <div class="step-title">🚀 步骤 3：打开商家版页面，点击书签</div>
+                <p>访问支持的目标页面，点击书签栏中的「自动出餐 V1」，右下角弹出悬浮控制面板：</p>
+                <table class="strategy-table" style="margin-top:12px;">
+                    <tr><th>平台</th><th>网址</th><th>加载脚本</th></tr>
+                    <tr><td>美团外卖</td><td><code>waimaie.meituan.com</code></td><td>domExtractor.bookmarklet.js</td></tr>
+                    <tr><td>淘宝闪购<br>(饿了么)</td><td><code>melody.shop.ele.me</code></td><td>taobaoFlash.bookmarklet.js</td></tr>
+                </table>
                 <ul class="notice-list" style="margin-top:12px;">
                     <li>面板里能看到订单列表、出餐策略按钮、实时日志</li>
                     <li>点「开始监控」即开始 5 秒一次的自动出餐</li>
@@ -230,7 +235,7 @@
             </div>
 
             <div class="warn-box">
-                <strong>⚠️ 使用范围:</strong>本工具<strong>仅用于美团外卖商家版订单页面</strong>(waimaie.meituan.com),<strong>不要</strong>在其他网站或非授权场景下使用。自动出餐脚本会真实点击页面按钮,请确保你已了解后果再启用。
+                <strong>⚠️ 使用范围:</strong>本工具<strong>仅用于美团外卖商家版</strong>(waimaie.meituan.com) 和 <strong>淘宝闪购/饿了么商家版</strong>(melody.shop.ele.me),<strong>不要</strong>在其他网站或非授权场景下使用。自动出餐脚本会真实点击页面按钮,请确保你已了解后果再启用。
             </div>
 
             <div class="tip-box">
@@ -332,7 +337,7 @@
         <div class="card">
             <h2>📋 备用安装方式</h2>
             <p>如果拖拽书签不成功,可在美团商家页面控制台(F12 → Console)粘贴:</p>
-            <pre style="background:#1a1a2e;color:#a9b7c6;padding:16px;border-radius:8px;font-size:13px;overflow-x:auto;margin-top:12px;">var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t='+Date.now();document.body.appendChild(s);</pre>
+            <pre style="background:#1a1a2e;color:#a9b7c6;padding:16px;border-radius:8px;font-size:13px;overflow-x:auto;margin-top:12px;">var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/bookmarklet.loader.js?t='+Date.now();document.body.appendChild(s);</pre>
             <div class="tip-box" style="margin-top:12px;">
                 <strong>提示:</strong>此方式仅当次页面有效,刷新后需重新执行。推荐使用书签方式。
             </div>
