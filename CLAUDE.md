@@ -124,6 +124,43 @@ Returns `{"ncp":"2.0.0","id":"...","result":{"newOrderCount":0,"newOrderModelLis
 | `ShopQueryService.queryDataByTab` | 200, result null | unknown — needs params |
 | `ShopQueryService.queryHeadDataByInProcessQueryType` | 200, error 10004 | needs `queryType` param |
 
+### `mealComplete` — Cook-complete endpoint (verified 2026-06-18)
+
+The "上报出餐" button calls this API directly. **No DOM click needed.**
+
+- **URL**: `https://app-api.shop.ele.me/fulfill/weborder/mealComplete/?method=ShipmentService.mealComplete`
+- **Method**: POST
+- **Headers**: `Content-Type: application/json;charset=UTF-8`, `x-shard: shopid=<shopId>`, cookies auto-included
+- **Body**:
+  ```json
+  {
+    "service": "ShipmentService",
+    "method": "mealComplete",
+    "params": { "orderId": "8075110341691783597", "shopId": 542990592 },
+    "id": "30E8F24C0A4E46FCACA20200F8C24DD6|1781794687920",
+    "metas": {
+      "appVersion": "1.0.0",
+      "appName": "melody",
+      "ksid": "<from document.cookie>",
+      "shopId": 542990592
+    },
+    "ncp": "2.0.0"
+  }
+  ```
+- **Success response**:
+  ```json
+  {
+    "ncp": "2.0.0",
+    "id": "fulfill.order_prod^^30E8F24C0A4E46FCACA20200F8C24DD6|1781794687920",
+    "result": { "orderId": "8075110341691783597", "toast": null },
+    "error": null
+  }
+  ```
+- **No signature parameter** required — `id` is a UUID-like timestamp, `metas.ksid` is the cookie value, `_m_h5_tk` is NOT needed in body.
+- **Response error field is null on success**. The user confirmed by clicking — got `result.orderId` matching the request.
+
+This means the entire auto-cook engine can be **pure API**, no DOM access, no iframe access, no new window. Both `queryInProcessOrders` and `mealComplete` are reachable from the main page (`melody.shop.ele.me`).
+
 ### `queryInProcessOrders` JSON structure (verified 2026-06-18)
 
 `params: { shopId, queryType: 'ALL' }` works — returns an array of full order objects.
