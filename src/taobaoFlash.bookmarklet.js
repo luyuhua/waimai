@@ -110,7 +110,12 @@
                 var data = null;
                 try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }; }
                 if (data && data.error) {
-                    return { ok: false, error: data.error.message || data.error.name || JSON.stringify(data.error) };
+                    var errStr = ((data.error.name || '') + ' ' + (data.error.message || '')).trim();
+                    // 401 / 未登录 / 验证 / 风控 / 滑动 都视为风控,不再轮询
+                    if (/UNAUTHORIZED|未登录|验证|风控|滑动|机器|captcha|滑块/i.test(errStr)) {
+                        return { ok: false, captcha: true, error: '触发淘宝风控: ' + errStr };
+                    }
+                    return { ok: false, error: errStr || JSON.stringify(data.error) };
                 }
                 return { ok: true, data: data };
             });
@@ -132,6 +137,7 @@
             if (!r.ok) {
                 if (r.captcha) {
                     window.__captchaTriggered = true;
+                    window.__lastCaptchaTime = Date.now();
                     panelLog('🚨 触发淘宝风控(机器人验证),已暂停监控,请人工处理后刷新页面', 'red');
                 } else {
                     panelLog('❌ 拉取订单失败: ' + r.error, 'red');
@@ -286,6 +292,7 @@
         }).then(function (r) {
             if (r.captcha) {
                 window.__captchaTriggered = true;
+                window.__lastCaptchaTime = Date.now();
                 panelLog('🚨 触发淘宝风控,已暂停所有出餐,请人工处理后刷新页面', 'red');
                 return { ok: false, error: '风控' };
             }
@@ -342,6 +349,16 @@
     window.monitorOrders = function(intervalMs) {
         // 强制下限:官方 pollingInterval=120s,触发风控前不能更短
         intervalMs = Math.max(intervalMs || 120000, POLL_FLOOR_SEC * 1000);
+
+        // 自动退避:5 分钟内触发过风控,间隔翻倍(最多 ×8 = 16 分钟)
+        if (window.__lastCaptchaTime) {
+            var elapsed = Date.now() - window.__lastCaptchaTime;
+            if (elapsed < 5 * 60 * 1000) {
+                intervalMs = Math.min(intervalMs * 2, POLL_FLOOR_SEC * 1000 * 8);
+            } else {
+                window.__lastCaptchaTime = null;  // 冷却过了,清掉
+            }
+        }
 
         // 出餐配置
         window.__cookConfig = window.__cookConfig || {
@@ -1007,7 +1024,17 @@
     if (isTaobao) {
         createPanel();
         panelLog('🍜 淘宝闪购页面检测到', 'blue');
-        panelLog('💡 点击「开始监控」启动自动出餐', 'gray');
+
+        // 启动前检查 cookie,缺 _m_h5_tk 时大概率会被风控
+        var hasH5tk = /(?:^|;\s*)_m_h5_tk=/.test(document.cookie);
+        var hasKsid = /(?:^|;\s*)ksid=/.test(document.cookie);
+        var hasShopId = /(?:^|;\s*)shopId=/.test(document.cookie);
+        if (!hasH5tk || !hasKsid) {
+            panelLog('⚠️ 缺少关键 cookie (' + (hasH5tk ? '' : '_m_h5_tk ') + (hasKsid ? '' : 'ksid ') + '),大概率会被风控', 'red');
+            panelLog('💡 建议:先在 Edge 正常打开店铺页面,等加载完成后再点书签启动监控', 'orange');
+        } else {
+            panelLog('💡 点击「开始监控」启动自动出餐', 'gray');
+        }
 
         // 自动启动监控(120s,与官方轮询周期对齐,防风控)
         setTimeout(function() {
