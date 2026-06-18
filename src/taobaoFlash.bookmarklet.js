@@ -26,140 +26,217 @@
     'use strict';
 
     console.log('%c🍜 淘宝闪购自动出餐助手', 'color: #ff6a00; font-size: 20px; font-weight: bold;');
-    console.log('%c⚠️ 骨架版 - extractOrders() 待补完', 'color: #f59e0b;');
+    console.log('%c📡 API 模式：queryInProcessOrders / mealComplete', 'color: #ff6a00;');
     console.log('');
 
-    // ==================== Tab 切换 ====================
+    // ==================== API 基础配置 ====================
 
-    window.switchToOrderTab = function() {
-        // 订单处理菜单项是 div（带 data-aspm-param 属性）
-        // 通过 data-aspm-param 或文本内容匹配
-        var candidates = document.querySelectorAll('div[data-aspm-param]');
-        for (var i = 0; i < candidates.length; i++) {
-            var item = candidates[i];
-            if (item.innerText && item.innerText.trim() === '订单处理') {
-                item.click();
-                return true;
-            }
+    var API_BASE = 'https://app-api.shop.ele.me/fulfill/weborder/';
+    var POLL_FLOOR_SEC = 120;
+    var AFTER_ORDER_FLOOR_SEC = 120;
+
+    // ==================== 工具:shopId / ksid / uuid ====================
+
+    function getShopId() {
+        var m = (window.location.search || '').match(/shop[Ii]d=(\d+)/);
+        if (m) return parseInt(m[1], 10);
+        if (window.__shopId) return window.__shopId;
+        var hm = (window.location.hash || '').match(/shop\/(\d+)/);
+        if (hm) return parseInt(hm[1], 10);
+        return null;
+    }
+
+    function getKsid() {
+        var m = document.cookie.match(/(?:^|;\s*)ksid=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    function uuidLike() {
+        var hex = '0123456789ABCDEF';
+        var s = '';
+        for (var i = 0; i < 32; i++) s += hex[Math.floor(Math.random() * 16)];
+        return s;
+    }
+
+    // ==================== API 调用 ====================
+
+    function buildBody(service, method, params) {
+        return {
+            service: service,
+            method: method,
+            params: params,
+            id: uuidLike() + '|' + Date.now(),
+            metas: {
+                appVersion: '1.0.0',
+                appName: 'melody',
+                ksid: getKsid(),
+                shopId: getShopId()
+            },
+            ncp: '2.0.0'
+        };
+    }
+
+    /**
+     * 通用 JSON-RPC 调用,返回 { ok, status, data, error, captcha }
+     * - ok=false 且 captcha=true: 触发了风控,需要立刻停止轮询
+     * - ok=false 且 error 非空: 业务错误
+     */
+    function apiCall(endpoint, service, method, params) {
+        var shopId = getShopId();
+        if (!shopId) {
+            return Promise.resolve({ ok: false, error: 'shopId 未找到,无法调用 API' });
         }
-        // fallback: 通过文本查找
-        var allDivs = document.querySelectorAll('div');
-        for (var j = 0; j < allDivs.length; j++) {
-            var d = allDivs[j];
-            if (d.innerText && d.innerText.trim() === '订单处理') {
-                d.click();
-                return true;
+        var url = API_BASE + endpoint + '/?method=' + service + '.' + method;
+        var body = buildBody(service, method, params);
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json;charset=UTF-8',
+                'x-shard': 'shopid=' + shopId
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        }).then(function (resp) {
+            // 淘宝改写 URL 加 _____tmd_____/punish 是风控命中标志
+            if (resp.url && resp.url.indexOf('_____tmd_____/punish') !== -1) {
+                return { ok: false, captcha: true, error: '触发淘宝风控: ' + resp.url };
             }
-        }
-        console.warn('⚠️ 未找到「订单处理」tab');
-        return false;
+            return resp.text().then(function (text) {
+                var data = null;
+                try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'JSON 解析失败: ' + text.slice(0, 200) }; }
+                if (data && data.error) {
+                    return { ok: false, error: data.error.message || data.error.name || JSON.stringify(data.error) };
+                }
+                return { ok: true, data: data };
+            });
+        }).catch(function (e) {
+            return { ok: false, error: '网络错误: ' + (e.message || e) };
+        });
+    }
+
+    // ==================== 订单提取(API 版) ====================
+
+    window.extractOrders = function () {
+        if (window.__extractInFlight) return window.__extractInFlight;
+
+        var p = apiCall('queryInProcessOrders', 'OrderWebService', 'queryInProcessOrders', {
+            shopId: getShopId(),
+            queryType: 'ALL'
+        }).then(function (r) {
+            window.__extractInFlight = null;
+            if (!r.ok) {
+                if (r.captcha) {
+                    window.__captchaTriggered = true;
+                    panelLog('🚨 触发淘宝风控(机器人验证),已暂停监控,请人工处理后刷新页面', 'red');
+                } else {
+                    panelLog('❌ 拉取订单失败: ' + r.error, 'red');
+                }
+                return [];
+            }
+            var result = (r.data && r.data.result) || {};
+            var list = result.orderModelList || result.inProcessOrders || result.orders || [];
+            return parseOrderList(list);
+        });
+        window.__extractInFlight = p;
+        return p;
     };
 
-    // ==================== 订单提取 ====================
-    // 订单卡片: div.order-card__xxx，id 是订单号
-    // 出餐按钮: button > span[text=上报出餐]
-    // 状态: .order-status__xxx 的 innerText
-
-    window.extractOrders = function() {
-        var cards = document.querySelectorAll('[class*="order-card"]');
-        if (!cards.length) return [];
-
+    /**
+     * 把 API 返回的订单 JSON 数组规整为 UI 用的统一结构,
+     * 字段命名跟美团版保持一致(orderNo / orderIndex / status / customerName …)
+     */
+    function parseOrderList(list) {
         var orders = [];
-
-        for (var i = 0; i < cards.length; i++) {
-            var card = cards[i];
-            var allText = card.innerText || '';
-            var data = {};
-
-            data.orderNo = card.id || '';
-            var indexMatch = allText.match(/#(\d+)/);
-            data.orderIndex = indexMatch ? parseInt(indexMatch[1]) : '';
-            var timeMatch = allText.match(/(\d{2}-\d{2}\s+\d{2}:\d{2})\s*下单/);
-            data.orderTime = timeMatch ? timeMatch[1] : '';
-            var deliverMatch = allText.match(/(\d{2}:\d{2})\s*前送达/);
-            data.deliverTime = deliverMatch ? deliverMatch[1] : '';
-            var nameMatch = allText.match(/^([一-龥]{1,2}\*\*|[一-龥]{2,4}(?:先生|女士))/m);
-            data.customerName = nameMatch ? nameMatch[1] : '';
-            var countMatch = allText.match(/近\d+天下单(\d+)次/);
-            data.customerOrderCount = countMatch ? parseInt(countMatch[1]) : 0;
-            data.isNewCustomer = allText.includes('门店新客');
-            data.isSuperMember = allText.includes('超级会员');
-            data.cannotContact = allText.includes('联系不上');
-
-            // 订单状态（独立维度）
-            var statusEl = card.querySelector('[class*="order-status"]');
-            data.riderStatus = statusEl ? statusEl.innerText.replace(/[>＞\s]+$/, '').trim() : '';
-
-            // 订单出餐状态
-            var hasReportBtn = !!card.querySelector('button span') &&
-                Array.from(card.querySelectorAll('span')).some(function(s) { return s.innerText.trim() === '上报出餐'; });
-            if (hasReportBtn) {
-                data.status = 'pending_cook';
-            } else if (allText.includes('已出餐') || allText.includes('已送达') || allText.includes('已收餐') || allText.includes('已完成')) {
-                data.status = 'cooked';
-            } else if (allText.includes('待接单') || allText.includes('待支付')) {
-                data.status = 'pending_accept';
-            } else if (allText.includes('已取消') || allText.includes('部分取消') || allText.includes('整单取消')) {
-                data.status = 'cancelled';
-            } else {
-                data.status = 'unknown';
-            }
-
-            data.cookTime = '';
-            var cookTimeMatch = allText.match(/出餐用时\s*(\d+)分(\d+)秒/);
-            if (cookTimeMatch) {
-                data.cookTime = cookTimeMatch[1] + ':' + cookTimeMatch[2];
-            }
-
-            // 备注
-            data.remark = '';
-            var remarkMatch = allText.match(/备注[：:]\s*([^\n]+)/);
-            if (remarkMatch) data.remark = remarkMatch[1].trim();
-
-            // 商品
-            data.products = [];
-            var productMatch = allText.match(/(\d+)种商品[，,]共(\d+)件/);
-            if (productMatch) {
-                data.products.push({ summary: productMatch[1] + '种商品，共' + productMatch[2] + '件' });
-            }
-
-            // 预计收入
-            data.estimatedIncome = 0;
-            var incomeMatch = allText.match(/预计收入\s*[￥¥]([\d.]+)/);
-            if (incomeMatch) data.estimatedIncome = parseFloat(incomeMatch[1]);
-
-            // 单号（OCR 中显示 "单号：xxxxx"，但实际 HTML 中可能在不同位置）
-            data.orderSerial = '';
-            var serialMatch = allText.match(/单号[：:]\s*(\d+)/);
-            if (serialMatch) data.orderSerial = serialMatch[1];
-
-            data.isPreOrder = false;
-
-            // 操作按钮
-            data.buttons = [];
-            var buttons = getCardButtons(card);
-            for (var b = 0; b < buttons.length; b++) {
-                data.buttons.push({ text: buttons[b].innerText.trim(), className: buttons[b].className || '', tag: buttons[b].tagName.toLowerCase() });
-            }
-
-            data.cookRemainingTime = '';
-            data.suggestedCookTime = '';
-            data.suggestedCookTimeSec = 0;
-            data.suggestedCookDeadline = '';
-
-            orders.push(data);
+        for (var i = 0; i < list.length; i++) {
+            orders.push(parseOrder(list[i]));
         }
-
-        // 排序：待出餐优先
-        orders.sort(function(a, b) {
+        orders.sort(function (a, b) {
             var aUrgent = (a.status === 'pending_cook' || a.status === 'pending_accept') ? 0 : 1;
             var bUrgent = (b.status === 'pending_cook' || b.status === 'pending_accept') ? 0 : 1;
             if (aUrgent !== bUrgent) return aUrgent - bUrgent;
             return (a.orderIndex || 0) < (b.orderIndex || 0) ? -1 : 1;
         });
-
         return orders;
-    };
+    }
+
+    function parseOrder(o) {
+        var header = o.header || {};
+        var user = o.userInfo || {};
+        var meal = o.mealPreparationInfo || {};
+        var food = o.foodInfo || {};
+        var settlement = o.settlementInfo || {};
+        var remark = o.remarkInfo || {};
+
+        var statusText = header.orderLatestStatus || '';
+        var mealComplete = !!meal.mealComplete;
+        var showCookBtn = !!meal.showCompleteMealButton;
+        var enable = meal.enable !== false;
+
+        var status;
+        if (mealComplete || /已出餐|已收餐|已送达|已完成/.test(statusText)) status = 'cooked';
+        else if (/已取消|部分取消|整单取消/.test(statusText)) status = 'cancelled';
+        else if (/待接单|待支付/.test(statusText)) status = 'pending_accept';
+        else if (showCookBtn || /待出餐|商家未出餐|备餐中/.test(statusText)) status = 'pending_cook';
+        else status = 'unknown';
+
+        // activeTime 是 ISO,转成 'MM-DD HH:mm' 给面板展示
+        var orderTime = '';
+        if (o.activeTime) {
+            var d = new Date(o.activeTime);
+            if (!isNaN(d.getTime())) {
+                var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+                orderTime = pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            }
+        }
+
+        var deliverTime = header.orderPromptDesc || '';
+        var deliverMatch = deliverTime.match(/(\d{2}:\d{2})\s*前送达/);
+        if (deliverMatch) deliverTime = deliverMatch[1];
+
+        var products = [];
+        if (Array.isArray(food.foodList)) {
+            food.foodList.forEach(function (f) {
+                products.push({
+                    name: f.foodName || f.name || '',
+                    quantity: f.quantity || 1,
+                    unitPrice: f.unitPrice || 0,
+                    totalPrice: f.totalPrice || 0
+                });
+            });
+        }
+
+        var income = 0;
+        if (settlement && settlement.userPaidAmount != null) income = settlement.userPaidAmount;
+        else if (settlement && settlement.income != null) income = settlement.income;
+
+        return {
+            orderNo: o.id || '',
+            orderIndex: header.daySn || '',
+            status: status,
+            statusText: statusText,
+            riderStatus: statusText,
+            orderTime: orderTime,
+            deliverTime: deliverTime,
+            customerName: user.consigneeName || '',
+            customerOrderCount: 0,
+            isNewCustomer: false,
+            isSuperMember: false,
+            cannotContact: false,
+            isPreOrder: header.orderType === 'BOOKING_ORDER_NORMAL',
+            products: products,
+            estimatedIncome: income,
+            remark: remark.remark || remark.content || '',
+            cookRemainingTime: '',
+            suggestedCookTime: '',
+            suggestedCookTimeSec: meal.minMealCompleteTimeCount || 0,
+            suggestedCookDeadline: '',
+            planDeliverTiming: header.planDeliverTiming || 0,
+            mealComplete: mealComplete,
+            showCompleteMealButton: showCookBtn,
+            buttons: showCookBtn ? [{ text: '上报出餐', tag: 'api', className: '' }] : [],
+            _raw: o
+        };
+    }
 
     window.printOrders = function(orders) {
         if (!orders || orders.length === 0) {
@@ -187,78 +264,92 @@
         }));
     };
 
-    // ==================== 按钮查找 ====================
-
-    function getCardButtons(card) {
-        var btns = Array.from(card.querySelectorAll('button'));
-        return btns;
-    }
+    // ==================== 出餐 API ====================
 
     /**
-     * 查找订单卡片中包含指定文本的按钮
+     * 调 mealComplete 接口对指定订单出餐。
+     * 返回 Promise<{ok, error?}>
      */
-    function findButtonByText(card, text) {
-        var buttons = getCardButtons(card);
-        for (var i = 0; i < buttons.length; i++) {
-            if (buttons[i].innerText.trim().includes(text)) return buttons[i];
+    function mealComplete(orderNo) {
+        if (window.__captchaTriggered) {
+            return Promise.resolve({ ok: false, error: '已触发风控,暂停出餐' });
         }
-        return null;
+        return apiCall('mealComplete', 'ShipmentService', 'mealComplete', {
+            orderId: orderNo,
+            shopId: getShopId()
+        }).then(function (r) {
+            if (r.captcha) {
+                window.__captchaTriggered = true;
+                panelLog('🚨 触发淘宝风控,已暂停所有出餐,请人工处理后刷新页面', 'red');
+                return { ok: false, error: '风控' };
+            }
+            if (!r.ok) return { ok: false, error: r.error };
+            return { ok: true };
+        });
     }
 
-    window.clickOrderButton = function(orderNo, buttonText) {
-        var cards = document.querySelectorAll('[class*="order-card"]');
-        for (var i = 0; i < cards.length; i++) {
-            if (cards[i].id === orderNo) {
-                var btn = findButtonByText(cards[i], buttonText);
-                if (btn) {
-                    btn.click();
-                    console.log('✅ 已点击「' + buttonText + '」: 订单 ' + orderNo);
-                    return true;
-                }
-                console.warn('⚠️ 订单 ' + orderNo + ' 中未找到「' + buttonText + '」按钮');
-                return false;
-            }
+    window.clickOrderButton = function (orderNo, buttonText) {
+        if (buttonText && buttonText.indexOf('上报出餐') === -1) {
+            console.warn('⚠️ 淘宝闪购仅支持「上报出餐」,其他按钮未实现');
+            return false;
         }
-        console.error('❌ 未找到订单 ' + orderNo);
-        return false;
+        mealComplete(orderNo).then(function (r) {
+            if (r.ok) {
+                console.log('%c✅ 已出餐: 订单 ' + orderNo, 'color: green; font-weight: bold;');
+            } else {
+                console.error('❌ 出餐失败: 订单 ' + orderNo + ' ' + (r.error || ''));
+            }
+        });
+        return true;
     };
 
-    window.autoCookAll = function(intervalMs) {
+    window.autoCookAll = function (intervalMs) {
         intervalMs = intervalMs || 2000;
-        var cards = document.querySelectorAll('[class*="order-card"]');
-        var count = 0;
-
-        for (var i = 0; i < cards.length; i++) {
-            var card = cards[i];
-            var text = card.innerText || '';
-            if (text.includes('上报出餐')) {
-                var btn = findButtonByText(card, '上报出餐');
-                if (btn) {
-                    (function(b, no) {
-                        setTimeout(function() { b.click(); }, count * intervalMs);
-                    })(btn, card.id);
-                    count++;
-                }
+        window.extractOrders().then(function (orders) {
+            if (!orders || orders.length === 0) {
+                console.log('%c📭 没有订单', 'color: #888;');
+                return;
             }
-        }
-
-        if (count === 0) console.log('📭 没有待出餐订单');
-        else console.log('🚀 将自动出餐 ' + count + ' 单，间隔 ' + intervalMs + 'ms');
-        return count;
+            var targets = orders.filter(function (o) {
+                return o.status === 'pending_cook' && o.showCompleteMealButton;
+            });
+            if (targets.length === 0) {
+                console.log('%c📭 没有待出餐订单', 'color: #888;');
+                return;
+            }
+            console.log('%c🚀 将自动出餐 ' + targets.length + ' 单,间隔 ' + intervalMs + 'ms', 'color: #ff6a00; font-weight: bold;');
+            targets.forEach(function (o, idx) {
+                setTimeout(function () {
+                    mealComplete(o.orderNo).then(function (r) {
+                        if (r.ok) console.log('✅ # ' + o.orderIndex + ' ' + o.customerName + ' 已出餐');
+                        else console.error('❌ # ' + o.orderIndex + ' 出餐失败: ' + (r.error || ''));
+                    });
+                }, idx * intervalMs);
+            });
+        });
+        return 0;
     };
 
     // ==================== 监控 ====================
-    // 复用美团的定时器策略逻辑，TODO: 补完状态判断
+    // 复用美团的定时器策略逻辑，API 模式下默认 120s 轮询(防风控)
 
     window.monitorOrders = function(intervalMs) {
-        intervalMs = intervalMs || 5000;
+        // 强制下限:官方 pollingInterval=120s,触发风控前不能更短
+        intervalMs = Math.max(intervalMs || 120000, POLL_FLOOR_SEC * 1000);
 
         // 出餐配置
         window.__cookConfig = window.__cookConfig || {
             strategy: 'after_order',
-            afterOrderMinSec: 240,
-            afterOrderMaxSec: 300
+            afterOrderMinSec: AFTER_ORDER_FLOOR_SEC,
+            afterOrderMaxSec: AFTER_ORDER_FLOOR_SEC + 60
         };
+        // 下单后窗口下限保护
+        if (window.__cookConfig.afterOrderMinSec < AFTER_ORDER_FLOOR_SEC) {
+            window.__cookConfig.afterOrderMinSec = AFTER_ORDER_FLOOR_SEC;
+        }
+        if (window.__cookConfig.afterOrderMaxSec < window.__cookConfig.afterOrderMinSec) {
+            window.__cookConfig.afterOrderMaxSec = window.__cookConfig.afterOrderMinSec + 60;
+        }
         window.__cookTimers = window.__cookTimers || {};
 
         if (window.__orderMonitorTimer) {
@@ -277,30 +368,35 @@
         }
 
         function clickReportButton(orderNo) {
-            var cards = document.querySelectorAll('[class*="order-card"]');
-            for (var i = 0; i < cards.length; i++) {
-                if (cards[i].id === orderNo) {
-                    var btn = findButtonByText(cards[i], '上报出餐');
-                    if (btn) { btn.click(); return true; }
+            mealComplete(orderNo).then(function (r) {
+                if (r.ok) {
+                    panelLog('✅ 已自动出餐: ' + orderNo, 'green');
+                } else {
+                    panelLog('❌ 出餐失败 ' + orderNo + ': ' + (r.error || ''), 'red');
                 }
-            }
-            return false;
+            });
         }
 
         function checkOrders() {
             window.__monitorCheckCount++;
 
-            var allOrders = window.extractOrders ? window.extractOrders() : null;
-            if (!allOrders || allOrders.length === 0) {
-                if (window.__monitorCheckCount % 6 === 1) {
-                    panelLog('⏸️ 监控中 | 当前页面无订单数据', 'gray', 'heartbeat');
-                }
+            if (window.__captchaTriggered) {
+                panelLog('🚨 已触发风控,监控暂停', 'red', 'heartbeat');
                 return;
             }
 
-            var cookLabel = { pending_cook: '待出餐', cooked: '已出餐', pending_accept: '待接单', cancelled: '已取消' };
+            var p = window.extractOrders ? window.extractOrders() : Promise.resolve([]);
+            p.then(function (allOrders) {
+                if (!allOrders || allOrders.length === 0) {
+                    if (window.__monitorCheckCount % 6 === 1) {
+                        panelLog('⏸️ 监控中 | 当前页面无订单数据', 'gray', 'heartbeat');
+                    }
+                    return;
+                }
 
-            allOrders.forEach(function(order) {
+                var cookLabel = { pending_cook: '待出餐', cooked: '已出餐', pending_accept: '待接单', cancelled: '已取消' };
+
+                allOrders.forEach(function(order) {
                 var orderNo = order.orderNo;
                 if (!orderNo) return;
                 var orderLabel = '#' + (order.orderIndex || '?') + ' ' + (order.customerName || '顾客');
@@ -389,6 +485,7 @@
                 var timerInfo = timerCount > 0 ? ' | ⏰ 待出餐 ' + timerCount + ' 单' : '';
                 panelLog(emoji + ' 监控中 | 已知 ' + window.__knownOrders.size + ' 单 | 待出餐 ' + pendingCount + ' 单' + timerInfo, 'gray', 'heartbeat');
             }
+            });
         }
 
         var config = window.__cookConfig;
@@ -661,10 +758,11 @@
      * 更新面板订单列表
      */
     window.updatePanelOrders = function() {
-        var orders = window.extractOrders ? window.extractOrders() : null;
         var listEl = document.getElementById('waimai-order-list');
         if (!listEl) return;
         var badge = document.getElementById('waimai-badge');
+        var p = window.extractOrders ? window.extractOrders() : Promise.resolve(null);
+        p.then(function(orders) {
 
         if (!orders || orders.length === 0) {
             listEl.innerHTML = '<div style="color:#666;font-size:12px;">暂无订单数据（extractOrders返回: ' + (orders === null ? 'null' : orders.length + '条') + '）</div>';
@@ -820,6 +918,7 @@
             var arrow = document.getElementById('waimai-panel').style.display === 'none' ? '▼' : '▲';
             toggle.innerHTML = '🛵 <span class="badge" id="waimai-badge">' + pendingCount + '</span> 待出餐 ' + arrow;
         }
+        });
     };
 
     /**
@@ -861,7 +960,7 @@
         if (beforeMinEl) config.beforeDeadlineMinSec = parseInt(beforeMinEl.value) || 120;
         if (beforeMaxEl) config.beforeDeadlineMaxSec = parseInt(beforeMaxEl.value) || 180;
 
-        window.monitorOrders(5000);
+        window.monitorOrders(120000);
 
         // 更新按钮状态和订单列表
         var startBtn = document.getElementById('waimai-btn-start');
@@ -904,9 +1003,9 @@
         panelLog('🍜 淘宝闪购页面检测到', 'blue');
         panelLog('💡 点击「开始监控」启动自动出餐', 'gray');
 
-        // 自动启动监控
+        // 自动启动监控(120s,与官方轮询周期对齐,防风控)
         setTimeout(function() {
-            window.monitorOrders(5000);
+            window.monitorOrders(120000);
         }, 1500);
     } else {
         createPanel();
