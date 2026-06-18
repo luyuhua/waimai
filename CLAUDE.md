@@ -297,3 +297,44 @@ As of 2026-06-18, `taobaoFlash.bookmarklet.js` is at **API stage** (Phase 3 ship
 3. **Pre-order handling** — `isPreOrder: true` orders use `header.orderType === 'BOOKING_ORDER_NORMAL'`. Cook window should be relative to the *scheduled cook time*, not `activeTime`. Currently not implemented (parity with Meituan would need this).
 4. **Re-introduce `notify`/`beep` on new pending-cook** — useful for operator awareness; not in scope yet.
 5. **Consider `bookmarklet.loader.js` cacheBust on re-click** — currently `?t=Date.now()` is fixed at first load; user must re-drag the bookmark or manually re-inject to get new script. Could add a "reload" button in panel.
+
+### Phase 4: Edge + 阿里霸下风控(2026-06-19,无解)
+
+**User report**: 淘宝闪购脚本在 Chrome 上正常,在 Edge 上"启动就弹风控"。关闭 MetaMask 扩展后仍弹。
+
+**Root cause investigation**:
+
+Edge 页面加载到以下风控 SDK(从控制台 `bookmarklet.loader.js?t=...:72` 后续日志可见):
+- `baxiaCommon.js` — **阿里霸下风控**,含 `HookBX$1.window.fetch`,**直接 hook 了 `window.fetch`**
+- `et_f.js` / `app.f8ff7984.js` — 淘宝主程序,经霸下包装后用 `o.j.fetch(...)` 调用
+- `fireyejs.js` — 同盾/数美一类设备指纹 SDK
+- `securityHeader.min.js` — 淘宝请求安全头,加载外网配置 `https://xux-web-config.oss-accelerate.aliyuncs.com/aes-config/melody/qnrForm.json` 失败(`net::ERR_TIMED_OUT`)
+
+霸下 hook 行为细节(从 `❌ 拉取订单失败: 网络错误: [object Response]` 反推):
+- fetch reject 时,error 是一个 `Response` 对象(被霸下替换过)
+- `e.message` 不可用,`(e.message || e)` 退到 `String(e)` 字符串化 Response → `[object Response]`
+- **fetch 被劫持是表象,真因是霸下在另一通道同步通知淘宝后端"该请求来自脚本"**,所以弹风控
+
+**XHR 实验**:`apiCall` 改用 `XMLHttpRequest` 后控制台出现:
+```
+[apiCall] XHR onerror status=200 readyState=4
+```
+**XHR 在 status=200 readyState=4(请求成功)时仍被调用 onerror** — 说明霸下同时 hook 了 `XHR` 的完成回调,在成功响应上伪造 onerror 触发风控。**XHR 路径也不行。**
+
+**结论**:阿里霸下同时 hook `window.fetch` 和 `XMLHttpRequest`,在响应被消费前会判断请求来源,非交互上下文直接触发风控弹窗。**Edge UA + 该店铺账号的会话信任度被阿里风控标记**,跟脚本写法(headers / body / 鉴权)无关。Chrome 同一个店铺能用,说明这是**阿里针对不同 UA 的差异化风控策略**,不是脚本能解决的。
+
+**用户实际能用的方案**(优先级降序):
+1. **Chrome 跑淘宝,Edge 跑美团**(最优)— Chrome UA 对成熟店铺账号风控容忍度高很多
+2. **重启 Edge + 重新登录淘宝 + 手动操作店铺 5-10 分钟**(浏览订单/接单),让霸下建立正常会话画像,再开脚本
+3. **Edge InPrivate 窗口**(全新 cookie 池,无扩展)— 有概率过
+4. **冷却几小时后再试** — 阿里风控"异常行为"标记通常 1-4 小时后自动重置
+
+**脚本侧已做的退避(不能根除,只能减少触发)**:
+- 启动前检查 `_m_h5_tk` / `ksid` / `shopId` 三个 cookie,缺失时红字提示"先在 Edge 正常打开店铺页面让人机验证一次"
+- 触发风控时记录 `__lastCaptchaTime`,5 分钟内重启监控则间隔翻倍(最多 ×8 = 16 分钟)
+- 错误响应 body 关键字匹配 `UNAUTHORIZED|未登录|验证|风控|滑动|机器|captcha|滑块`,识别到立即设 `__captchaTriggered` 暂停
+- **冷启动模式**(2026-06-19 加入):启动时先发一次试探查询,失败就不开监控,避免 120s 循环反复触发风控;失败时面板显示 `🚨 冷启动失败: 触发风控。脚本不启动监控,请在 Edge 手动操作该店铺 5-10 分钟再重试`
+
+**Path forward(本质是用户体验,不是脚本)**:
+- **README/docs/index.html 显眼位置加 Edge 风控警告**,建议 Chrome 用户
+- 不再尝试改 `apiCall` 的 transport 层 — fetch/XHR/script-tag 都被霸下覆盖或被判定
