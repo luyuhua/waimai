@@ -38,9 +38,14 @@
     // ==================== 工具:shopId / ksid / uuid ====================
 
     function getShopId() {
+        // 优先级:URL search > 手动缓存 > cookie > pathname > hash
         var m = (window.location.search || '').match(/shop[Ii]d=(\d+)/);
         if (m) return parseInt(m[1], 10);
         if (window.__shopId) return window.__shopId;
+        var cm = document.cookie.match(/(?:^|;\s*)shop[Ii]d=(\d+)/);
+        if (cm) return parseInt(cm[1], 10);
+        var pm = (window.location.pathname || '').match(/\/shop\/(\d+)/);
+        if (pm) return parseInt(pm[1], 10);
         var hm = (window.location.hash || '').match(/shop\/(\d+)/);
         if (hm) return parseInt(hm[1], 10);
         return null;
@@ -146,6 +151,7 @@
      * 字段命名跟美团版保持一致(orderNo / orderIndex / status / customerName …)
      */
     function parseOrderList(list) {
+        if (!Array.isArray(list)) return [];
         var orders = [];
         for (var i = 0; i < list.length; i++) {
             orders.push(parseOrder(list[i]));
