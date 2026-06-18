@@ -171,6 +171,38 @@ Key field paths:
 - **Anti-fraud / captcha**: Repeated rapid API calls (we triggered a captcha by querying 6 endpoints in one batch) trigger Taobao's anti-bot protection. User must back off, clear cookies or solve captcha. **Polling should be ≥ 120s**, and ideally batched (one call per cycle).
 - **Cookie sharing across subdomains**: `ksid` and `_m_h5_tk` are shared between `melody.shop.ele.me` and `napos-order-pc.faas.ele.me` (verified by comparing cookies from main page and iframe). So the auth model is "first-party subdomain", not "third-party iframe" — the cross-origin block is browser policy, not Taobao's choice.
 - **"未登录" in new window** is anti-fraud, not actual logout. Cookie is identical between main page and new window except for `isg` (anti-fraud token) value.
+- **Anti-fraud rewrites request URLs**: When captcha kicks in, the next `queryInProcessOrders` request gets rewritten to `/fulfill/weborder/queryInProcessOrders/_____tmd_____/punish?...&action=captcha` and the response is a captcha challenge instead of order data. The captcha URL pattern (`_____tmd_____/punish?x5secdata=...`) is the diagnostic for "I'm being rate-limited".
+
+### All API endpoints seen in `app-api.shop.ele.me` (from `performance.getEntries()`)
+
+```
+/arena/invoke/?method=AssistantEntranceService.getValidPages
+/xtop/xtop.arena.adp.service.gray.inGray/1.0
+/xtop/xtop.arena.message.reachDelivery.queryDeliveryRules/1.0
+/xtop/xtop.napos.keeper.shop.canManage/1.0
+/shop/invoke/?method=AlscTagService.queryTagsByTagId
+/xtop/xtop.napos.keeper.shop.queryShopTree/1.0
+/xtop/xtop.napos.keeper.permissionManager.getMenuTree/1.0
+/fulfill/device/controller/getAccsToken/?method=AuthCenterService.getToken
+/xtop/xtop.arena.message.messageAccs.getAccsToken/1.0
+/shop/invoke/?method=queryShop.getShopView
+/ugc/invoke/?method=shopRating.countNewShopRating
+/fulfill/weborder/queryAppealCenterMenuGray/invoke/?method=OrderWebService.queryAppealCenterMenuGray
+/fulfill/weborder/grayMenuAppealCompensation2Gray/invoke/?method=GrayService.grayMenuAppealCompensation2Gray
+/delivery/invoke/?method=GrayControlService.getConfigV2
+/arena/invoke/?method=CrmOpenService.checkCrmEntry
+/ugc/invoke/?method=ExportRatingTaskService.queryExportRatingTasks
+/stats/invoke/?method=DownloadDataService.queryHistoryList
+/arena/invoke/?method=KeeperService.getKeeper
+/arena/invoke/?method=AssistantEntranceService.getAssistantEntranceInfo
+/fulfill/weborder/countMenuOrder/?method=OrderWebService.countMenuOrder
+/arena/invoke/?method=PushService.polling
+/arena/invoke/?method=SceneManageService.getSpaceInfoBySpaceCodes
+/fulfill/weborder/traceTimer/?method=TraceService.traceTimer
+/fulfill/weborder/queryInProcessOrders/?method=OrderWebService.queryInProcessOrders
+```
+
+When a real "待出餐" order arrives, manually click "上报出餐" in the UI and capture the new request URL. Likely candidates to look for: any URL containing `completeMeal`, `reportCook`, `mealComplete`, `mealFinish`, `cookFinish`, or `submitMeal`.
 
 ### What works in the current code (taobaoFlash.bookmarklet.js)
 
