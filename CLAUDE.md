@@ -253,20 +253,47 @@ When a real "待出餐" order arrives, manually click "上报出餐" in the UI a
 
 ### What works in the current code (taobaoFlash.bookmarklet.js)
 
-The `taobaoFlash.*` scripts are at **DOM-extraction stage**, not API stage. Current implementation:
+As of 2026-06-18, `taobaoFlash.bookmarklet.js` is at **API stage** (Phase 3 shipped). DOM-based extraction is gone.
 
-- `extractOrders()` queries `[class*="order-card"]` on `document` — returns 0 because cards live in cross-origin iframe.
-- `switchToOrderTab()` clicks the "订单处理" tab via `div[data-aspm-param]` (works in main page sidebar).
-- `createPanel()`, `panelLog()`, `updatePanelOrders()` copied from Meituan version with brand color `#ff6a00`.
-- `monitorOrders()` runs 5s polling — but finds no orders because extraction is broken. **Polling interval also needs to be raised to 120s**.
-- `isOnOrderTab()` was removed because the menu doesn't have a `selected`/`active` class.
+**Architecture**:
+- Pure JSON-RPC, no DOM, no iframe access, no new window.
+- `apiCall(endpoint, service, method, params)` — generic POST to `https://app-api.shop.ele.me/fulfill/weborder/<endpoint>/?method=<Service>.<method>`. Auto-builds body with `metas.ksid` (from `document.cookie`), `metas.shopId` (from URL → cookie → pathname → hash), `metas.appName: 'melody'`. Sends header `x-shard: shopid=<shopId>`.
+- `extractOrders()` → Promise. Calls `queryInProcessOrders` with `params: { shopId, queryType: 'ALL' }`. Parses `result.orderModelList || result.inProcessOrders || result.orders || []` (all three keys tried; backend key can vary).
+- `mealComplete(orderNo)` → Promise. Calls `ShipmentService.mealComplete` with `params: { orderId, shopId }`. No sign parameter, no `_m_h5_tk` in body.
+- `clickOrderButton` / `autoCookAll` / `monitorOrders` (inner) all route through `mealComplete`.
+- `monitorOrders(intervalMs)` — `intervalMs` is **clamped to ≥ 120000** via `Math.max`. Default 120000. `afterOrderMinSec` also clamped to ≥ 120. Wind-up: if user enters lower value, monitor raises it to 120 silently.
+- Captcha detection: when fetch response URL contains `_____tmd_____/punish`, sets `window.__captchaTriggered = true`. All subsequent `extractOrders` / `mealComplete` short-circuit and panel shows red "🚨 触发淘宝风控" message. User must refresh page after solving captcha.
 
-### Path forward
+**State mapping** (parseOrder):
+- `mealPreparationInfo.mealComplete === true` OR status text matches 已出餐/已收餐/已送达/已完成 → `status: 'cooked'`
+- status text matches 已取消/部分取消/整单取消 → `cancelled`
+- status text matches 待接单/待支付 → `pending_accept`
+- `mealPreparationInfo.showCompleteMealButton === true` OR status text matches 待出餐/商家未出餐/备餐中 → `pending_cook` (cook-able!)
+- Field paths:
+  - `id` → `orderNo`
+  - `header.daySn` → `orderIndex` (e.g. `#25`)
+  - `header.orderLatestStatus` → `riderStatus` / `statusText`
+  - `header.orderPromptDesc` → `deliverTime` (e.g. `22:39 前送达`)
+  - `header.orderType === 'BOOKING_ORDER_NORMAL'` → `isPreOrder: true`
+  - `userInfo.consigneeName` → `customerName`
+  - `activeTime` (ISO) → `orderTime` formatted as `MM-DD HH:mm`
+  - `foodInfo.foodList[]` → `products[]` (each with `name`, `quantity`, `unitPrice`, `totalPrice`)
+  - `settlementInfo.userPaidAmount` → `estimatedIncome`
+  - `remarkInfo.remark` → `remark`
 
-1. Rewrite `extractOrders()` to call `queryInProcessOrders` API (with discovered `queryType`).
-2. Derive `orderNo`, `status`, `customer`, `products` from API JSON instead of DOM regex.
-3. Raise polling interval to 120s (match official `pollingInterval`).
-4. For cook-complete action, either:
-   - (a) find the API endpoint and call it directly, OR
-   - (b) navigate the main page URL to the iframe URL (with hash) and click — but login state is preserved when navigating within the same tab.
-5. Optional: postMessage from main page to iframe (iframe.contentWindow is accessible, even if contentDocument isn't) for cross-frame signaling, though Taobao's app doesn't listen to custom events.
+**Loader** (`bookmarklet.loader.js`):
+- `melody.shop.ele.me` → load `taobaoFlash.bookmarklet.js` **directly in main page** (no more `window.open`).
+- New-window approach was killed: Taobao's anti-fraud detects `window.opener` and refuses to load login state (shows "未登录"). Documented in this log.
+- `pageAnalyzer.js` is still chain-loaded first (no behavioral dep, just keeps console output ordered).
+
+**Bugs hit during Phase 3 development**:
+1. `getShopId` initially only looked at `location.search` and `location.hash`. Real production URL is `/app/shop/542990592/order__processing#app.shop.order.processing` — shopId is in `pathname`, not hash. Fixed by adding `pathname` and `document.cookie` (cookie has `shopId=...` directly) as fallbacks. Order: search → `window.__shopId` cache → cookie → pathname → hash.
+2. `parseOrderList(null)` threw because the call chain `result.orderModelList || result.inProcessOrders || result.orders || []` resolves to `[]` for a 0-order shop, but backend can also return `result: null` outright, which we need to tolerate. Wrapped in `Array.isArray(list)` check.
+
+### Path forward (next steps after Phase 3 ships)
+
+1. **Verify in real store with active orders** — current tests have been against 542990592 with `result: null` (no in-process orders). Need a run where `queryInProcessOrders` returns at least one `pending_cook` order to validate `parseOrder` field paths and `mealComplete` end-to-end.
+2. **Field-path validation** — `foodList`, `userPaidAmount`, `remark.remark` are best-guess from one observed response. Real pending-cook order may have different key names. Add defensive `|| 0` / `|| ''` everywhere (mostly already done).
+3. **Pre-order handling** — `isPreOrder: true` orders use `header.orderType === 'BOOKING_ORDER_NORMAL'`. Cook window should be relative to the *scheduled cook time*, not `activeTime`. Currently not implemented (parity with Meituan would need this).
+4. **Re-introduce `notify`/`beep` on new pending-cook** — useful for operator awareness; not in scope yet.
+5. **Consider `bookmarklet.loader.js` cacheBust on re-click** — currently `?t=Date.now()` is fixed at first load; user must re-drag the bookmark or manually re-inject to get new script. Could add a "reload" button in panel.
