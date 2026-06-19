@@ -115,17 +115,15 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
     })["executionContextId"]
 
     # 已知能用(2026-06-19 验证):只查 button,简化可见性
-    # 坐标不用 r.toJSON()(某些时序下被 CDP 截断成空对象),
-    # 改用 Number() 显式包装每个坐标字段,稳定传输到 Python
-    js = """
+    # 关键:isolated world 里 arguments 是 undefined,BTN_TEXT 必须直接拼到 JS 里
+    js_template = """
     (function() {
-        const BTN_TEXT = arguments[0];
+        const BTN_TEXT = "__BTN_TEXT__";
         const vw = window.innerWidth, vh = window.innerHeight;
         for (const el of document.querySelectorAll('button')) {
             const text = (el.innerText || '').trim();
             if (!text.includes(BTN_TEXT)) continue;
             const r = el.getBoundingClientRect();
-            // Number() 强制把 DOMRect 字段转成原始数字,避免 CDP 截断
             const x = Number(r.x) || 0;
             const y = Number(r.y) || 0;
             const w = Number(r.width) || 0;
@@ -148,11 +146,14 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
         return { found: false };
     })()
     """
+    # 安全转义:BTN_TEXT 不含引号 / 反斜杠即可(button_text 来自 --text 参数,用户控制)
+    safe_btn = button_text.replace("\\", "\\\\").replace('"', '\\"')
+    js = js_template.replace("__BTN_TEXT__", safe_btn)
+
     result = cdp.send("Runtime.evaluate", {
         "expression": js,
         "contextId": ctx_id,
-        "returnByValue": True,
-        "arguments": [{"value": button_text}]
+        "returnByValue": True
     })
     return result.get("result", {}).get("value")
 
@@ -165,9 +166,10 @@ def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200
     })["executionContextId"]
 
     # 只查 button,坐标用 Number() 显式包装避免 CDP 截断
-    js = """
+    # arguments[0] 在 isolated world 是 undefined,MAX 拼到 JS 里
+    js_template = """
     (function() {
-        const MAX = arguments[0];
+        const MAX = __MAX__;
         const out = [];
         const vw = window.innerWidth, vh = window.innerHeight;
         for (const el of document.querySelectorAll('button')) {
@@ -195,11 +197,11 @@ def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200
         return out;
     })()
     """
+    js = js_template.replace("__MAX__", str(max_items))
     result = cdp.send("Runtime.evaluate", {
         "expression": js,
         "contextId": ctx_id,
-        "returnByValue": True,
-        "arguments": [{"value": max_items}]
+        "returnByValue": True
     })
     return result.get("result", {}).get("value") or []
 
@@ -242,6 +244,33 @@ def check_captcha(cdp: CDP) -> bool:
         "returnByValue": True
     })
     return bool(result.get("result", {}).get("value"))
+
+
+def get_iframe_offset(cdp: CDP, frame_id: str) -> Optional[dict]:
+    """在 iframe 里用 window.frameElement 拿它在主 page 的位置
+    (仅当 iframe 在主 page DOM 里时可用;淘宝订单 iframe 在主 page,会成功)
+    """
+    ctx_id = cdp.send("Page.createIsolatedWorld", {
+        "frameId": frame_id,
+        "worldName": "auto-cook-poc"
+    })["executionContextId"]
+    js = """
+    (() => {
+        try {
+            const f = window.frameElement;
+            if (!f) return null;
+            const r = f.getBoundingClientRect();
+            return {x: Number(r.x) || 0, y: Number(r.y) || 0, w: Number(r.width) || 0, h: Number(r.height) || 0};
+        } catch(e) { return null; }
+    })()
+    """
+    result = cdp.send("Runtime.evaluate", {
+        "expression": js,
+        "contextId": ctx_id,
+        "returnByValue": True
+    })
+    val = result.get("result", {}).get("value")
+    return val if isinstance(val, dict) and val.get("w", 0) > 0 else None
 
 
 # ---------- 主流程 ----------
@@ -353,8 +382,19 @@ def main():
             print(f"  ✅ 按钮仍在,坐标 ({btn['x']:.1f}, {btn['y']:.1f})")
 
         # Step 5: 真实点击
+        # 关键:按钮坐标是 iframe viewport 内坐标,Input.dispatchMouseEvent 用 page 坐标
+        # 要加 iframe 在主 page 里的 offset
         print("\n[5/5] 发送真实鼠标事件 ...")
-        dispatch_mouse(cdp, btn["x"], btn["y"])
+        iframe_offset = get_iframe_offset(cdp, frame_id)
+        if iframe_offset:
+            page_x = btn["x"] + iframe_offset["x"]
+            page_y = btn["y"] + iframe_offset["y"]
+            print(f"  📐 iframe 偏移: ({iframe_offset['x']}, {iframe_offset['y']})")
+            print(f"  🎯 真实点击坐标: ({btn['x']:.0f}, {btn['y']:.0f}) → page ({page_x:.0f}, {page_y:.0f})")
+        else:
+            page_x, page_y = btn["x"], btn["y"]
+            print(f"  ⚠️  无法获取 iframe 偏移,使用 iframe 坐标 ({page_x:.0f}, {page_y:.0f})")
+        dispatch_mouse(cdp, page_x, page_y)
 
         # 验证
         print("\n[验证] 等待 3 秒让 UI 更新 ...")
