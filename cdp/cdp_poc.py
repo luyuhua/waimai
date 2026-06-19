@@ -74,20 +74,37 @@ def find_target() -> dict:
 
 
 def find_iframe_frame(cdp: CDP) -> Optional[str]:
-    """递归 Page.getFrameTree,找到订单 iframe 的 frameId"""
-    tree = cdp.send("Page.getFrameTree")["frameTree"]
+    """找到订单 iframe 的 frameId。
 
-    def walk(node):
-        url = node.get("url", "")
-        if IFRAME_URL_KEYWORD in url:
+    Chrome 149 的 Page.getFrameTree 在 tab 刚加载时可能返空 url,
+    所以重试 5 次,每次之间等 1 秒让 frame tree 刷新。
+    """
+    KEYWORD = "napos-order-pc"
+
+    def walk(node, predicate):
+        if predicate(node):
             return node.get("frame", {}).get("id")
         for child in node.get("childFrames", []):
-            found = walk(child)
+            found = walk(child, predicate)
             if found:
                 return found
         return None
 
-    return walk(tree)
+    def get_url(node):
+        return (node.get("frame", {}).get("url") or "")
+
+    # 多轮重试,因为 frame tree 在 iframe 刚挂载时 url 可能是空
+    for attempt in range(5):
+        tree = cdp.send("Page.getFrameTree")["frameTree"]
+        # 优先按 url 匹配
+        fid = walk(tree, lambda n: KEYWORD in get_url(n))
+        if fid:
+            print(f"  ✅ frame tree 第 {attempt+1} 次拿到 url 匹配")
+            return fid
+        # 兜底:按 main page 上挂的 iframe 顺序,在 frame tree 子节点里按位置对应
+        # (不可靠,只在极端情况用)
+        time.sleep(1)
+    return None
 
 
 def query_button_in_iframe(cdp: CDP, frame_id: str) -> Optional[dict]:
@@ -188,6 +205,11 @@ def main():
 
     cdp = CDP(ws_url)
     try:
+        # 启用 CDP domain(否则 Page.getFrameTree 返空 url,Runtime.evaluate 不返值)
+        cdp.send("Page.enable")
+        cdp.send("Runtime.enable")
+        print("  ✅ CDP Page/Runtime enabled")
+
         # Step 2: 找订单 iframe
         print("\n[2/5] 查找订单 iframe ...")
         frame_id = find_iframe_frame(cdp)
