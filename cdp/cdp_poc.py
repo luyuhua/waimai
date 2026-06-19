@@ -115,6 +115,8 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
     })["executionContextId"]
 
     # 已知能用(2026-06-19 验证):只查 button,简化可见性
+    # 坐标不用 r.toJSON()(某些时序下被 CDP 截断成空对象),
+    # 改用 Number() 显式包装每个坐标字段,稳定传输到 Python
     js = """
     (function() {
         const BTN_TEXT = arguments[0];
@@ -123,15 +125,22 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
             const text = (el.innerText || '').trim();
             if (!text.includes(BTN_TEXT)) continue;
             const r = el.getBoundingClientRect();
-            if (r.width < 5 || r.height < 5) continue;
-            if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
+            // Number() 强制把 DOMRect 字段转成原始数字,避免 CDP 截断
+            const x = Number(r.x) || 0;
+            const y = Number(r.y) || 0;
+            const w = Number(r.width) || 0;
+            const h = Number(r.height) || 0;
+            if (w < 5 || h < 5) continue;
+            const right = Number(r.right) || 0;
+            const bottom = Number(r.bottom) || 0;
+            if (right < 0 || bottom < 0 || x > vw || y > vh) continue;
             return {
                 found: true,
                 text: text,
-                x: r.x + r.width / 2,
-                y: r.y + r.height / 2,
-                w: r.width,
-                h: r.height,
+                x: x + w / 2,
+                y: y + h / 2,
+                w: w,
+                h: h,
                 tag: el.tagName,
                 cls: (el.className || '').toString().slice(0, 80)
             };
@@ -155,7 +164,7 @@ def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200
         "worldName": "auto-cook-poc"
     })["executionContextId"]
 
-    # 只查 button(已知能拿到,12 个左右)
+    # 只查 button,坐标用 Number() 显式包装避免 CDP 截断
     js = """
     (function() {
         const MAX = arguments[0];
@@ -165,14 +174,20 @@ def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200
             const text = (el.innerText || '').trim();
             if (!text) continue;
             const r = el.getBoundingClientRect();
-            if (r.width < 5 || r.height < 5) continue;
-            if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
+            const x = Number(r.x) || 0;
+            const y = Number(r.y) || 0;
+            const w = Number(r.width) || 0;
+            const h = Number(r.height) || 0;
+            if (w < 5 || h < 5) continue;
+            const right = Number(r.right) || 0;
+            const bottom = Number(r.bottom) || 0;
+            if (right < 0 || bottom < 0 || x > vw || y > vh) continue;
             const style = window.getComputedStyle(el);
             out.push({
                 text: text,
                 tag: el.tagName,
-                x: Math.round(r.x + r.width / 2),
-                y: Math.round(r.y + r.height / 2),
+                x: Math.round(x + w / 2),
+                y: Math.round(y + h / 2),
                 bg: style.backgroundColor
             });
             if (out.length >= MAX) break;
@@ -240,14 +255,15 @@ def main():
                         help="列出 iframe 内所有可能按钮的元素(用于探查页面结构)")
     parser.add_argument("--text", default=DEFAULT_BUTTON_TEXT,
                         help=f"按钮文案(默认: {DEFAULT_BUTTON_TEXT})")
-    parser.add_argument("--cooldown", type=int, default=COOLDOWN_SECONDS,
-                        help=f"点击前冷却秒数(默认: {COOLDOWN_SECONDS})")
+    parser.add_argument("--cooldown", type=int, default=0,
+                        help="点击前冷却秒数(默认: 0,直接点)")
     args = parser.parse_args()
 
     print("=" * 60)
     mode = "DRY-RUN" if args.dry_run else ("PROBE" if args.probe else "完整(会真实点击)")
+    cd_text = f"{args.cooldown}s" if args.cooldown > 0 else "无"
     print(f"🛵  CDP PoC: 淘宝闪购 - 找按钮 + 真实点击 [{mode}]")
-    print(f"     按钮文案: {args.text!r} | 冷却: {args.cooldown}s")
+    print(f"     按钮文案: {args.text!r} | 冷却: {cd_text}")
     print("=" * 60)
 
     # Step 1: 找 tab
@@ -312,25 +328,29 @@ def main():
             print("\n🏁 DRY-RUN 完成:按钮已找到,未点击(无副作用)")
             return 0
 
-        # Step 4: 冷却
-        print(f"\n[4/5] 出餐前冷却 {args.cooldown} 秒 ...")
-        print("  (避免出餐速度异常触发风控/订单系统告警)")
-        for remaining in range(args.cooldown, 0, -5):
-            print(f"  ⏳ 剩余 {remaining} 秒 ...", end="\r")
-            time.sleep(5)
-        print(f"  ✅ 冷却完毕{'':30s}")
+        # Step 4: 冷却(可选)
+        if args.cooldown > 0:
+            print(f"\n[4/5] 出餐前冷却 {args.cooldown} 秒 ...")
+            print("  (避免出餐速度异常触发风控/订单系统告警)")
+            for remaining in range(args.cooldown, 0, -5):
+                print(f"  ⏳ 剩余 {remaining} 秒 ...", end="\r")
+                time.sleep(5)
+            print(f"  ✅ 冷却完毕{'':30s}")
+        else:
+            print(f"\n[4/5] 跳过冷却(直接点)")
 
         # 最后再查一次按钮(订单可能在冷却期间被骑手/系统处理掉)
-        print("\n[最后检查] 重新确认按钮仍在 ...")
-        btn2 = query_button_in_iframe(cdp, frame_id, args.text)
-        if not btn2 or not btn2.get("found"):
-            print("  ⚠️  按钮已消失(订单可能已出餐/取消),不再点击")
-            return 1
-        if abs(btn2["x"] - btn["x"]) > 50 or abs(btn2["y"] - btn["y"]) > 50:
-            print(f"  ⚠️  按钮位置已变化(原 ({btn['x']:.0f},{btn['y']:.0f}) → 现 ({btn2['x']:.0f},{btn2['y']:.0f}))")
-            print("  💡 为安全起见,使用新坐标")
-            btn = btn2
-        print(f"  ✅ 按钮仍在,坐标 ({btn['x']:.1f}, {btn['y']:.1f})")
+        if args.cooldown > 0:
+            print("\n[最后检查] 重新确认按钮仍在 ...")
+            btn2 = query_button_in_iframe(cdp, frame_id, args.text)
+            if not btn2 or not btn2.get("found"):
+                print("  ⚠️  按钮已消失(订单可能已出餐/取消),不再点击")
+                return 1
+            if abs(btn2["x"] - btn["x"]) > 50 or abs(btn2["y"] - btn["y"]) > 50:
+                print(f"  ⚠️  按钮位置已变化(原 ({btn['x']:.0f},{btn['y']:.0f}) → 现 ({btn2['x']:.0f},{btn2['y']:.0f}))")
+                print("  💡 为安全起见,使用新坐标")
+                btn = btn2
+            print(f"  ✅ 按钮仍在,坐标 ({btn['x']:.1f}, {btn['y']:.1f})")
 
         # Step 5: 真实点击
         print("\n[5/5] 发送真实鼠标事件 ...")
