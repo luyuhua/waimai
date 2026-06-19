@@ -247,26 +247,24 @@ def check_captcha(cdp: CDP) -> bool:
 
 
 def get_iframe_offset(cdp: CDP, frame_id: str) -> Optional[dict]:
-    """在 iframe 里用 window.frameElement 拿它在主 page 的位置
-    (仅当 iframe 在主 page DOM 里时可用;淘宝订单 iframe 在主 page,会成功)
-    """
-    ctx_id = cdp.send("Page.createIsolatedWorld", {
-        "frameId": frame_id,
-        "worldName": "auto-cook-poc"
-    })["executionContextId"]
-    js = """
-    (() => {
-        try {
-            const f = window.frameElement;
-            if (!f) return null;
-            const r = f.getBoundingClientRect();
-            return {x: Number(r.x) || 0, y: Number(r.y) || 0, w: Number(r.width) || 0, h: Number(r.height) || 0};
-        } catch(e) { return null; }
-    })()
+    """在主 page 查订单 iframe 的位置(跨域 iframe 内部 window.frameElement = null)
+
+    通过主 page 找到 src 包含 napos-order-pc 的 <iframe> 元素,读它的 getBoundingClientRect。
     """
     result = cdp.send("Runtime.evaluate", {
-        "expression": js,
-        "contextId": ctx_id,
+        "expression": """
+        (() => {
+            const f = document.querySelector('iframe[src*="napos-order-pc"]');
+            if (!f) return null;
+            const r = f.getBoundingClientRect();
+            return {
+                x: Number(r.x) || 0,
+                y: Number(r.y) || 0,
+                w: Number(r.width) || 0,
+                h: Number(r.height) || 0
+            };
+        })()
+        """,
         "returnByValue": True
     })
     val = result.get("result", {}).get("value")
@@ -286,10 +284,19 @@ def main():
                         help=f"按钮文案(默认: {DEFAULT_BUTTON_TEXT})")
     parser.add_argument("--cooldown", type=int, default=0,
                         help="点击前冷却秒数(默认: 0,直接点)")
+    parser.add_argument("--watch", type=int, default=0, metavar="N",
+                        help="轮询模式:每 N 秒查一次按钮,找到就点(默认: 0=不轮询,跑一次就退)")
     args = parser.parse_args()
 
     print("=" * 60)
-    mode = "DRY-RUN" if args.dry_run else ("PROBE" if args.probe else "完整(会真实点击)")
+    if args.watch > 0:
+        mode = f"WATCH({args.watch}s)轮询"
+    elif args.dry_run:
+        mode = "DRY-RUN"
+    elif args.probe:
+        mode = "PROBE"
+    else:
+        mode = "完整(会真实点击)"
     cd_text = f"{args.cooldown}s" if args.cooldown > 0 else "无"
     print(f"🛵  CDP PoC: 淘宝闪购 - 找按钮 + 真实点击 [{mode}]")
     print(f"     按钮文案: {args.text!r} | 冷却: {cd_text}")
@@ -332,9 +339,29 @@ def main():
                           f"<{it['tag']:6s}> {it['text']!r} bg={it['bg']}")
             return 0
 
-        # Step 3: 查按钮
-        print(f"\n[3/5] 查找按钮「{args.text}」 ...")
-        btn = query_button_in_iframe(cdp, frame_id, args.text)
+        # Step 3: 查按钮(轮询模式 --watch N 时每 N 秒查一次,找到就点)
+        print(f"\n[3/6] 查找按钮「{args.text}」 ...")
+        if args.watch > 0:
+            print(f"  ⏰ 轮询模式: 每 {args.watch} 秒查一次,Ctrl+C 停止")
+            attempt = 0
+            btn = None
+            while True:
+                attempt += 1
+                btn = query_button_in_iframe(cdp, frame_id, args.text)
+                if btn and btn.get("found"):
+                    print(f"  ✅ 第 {attempt} 次查到了!")
+                    break
+                print(f"  ⏳ 第 {attempt} 次未找到,等 {args.watch} 秒 ...", end="\r")
+                time.sleep(args.watch)
+                # 重新查 frame_id(订单切换/页面刷新时 frame_id 会变)
+                if attempt % 5 == 0:
+                    new_fid = find_iframe_frame(cdp)
+                    if new_fid and new_fid != frame_id:
+                        print(f"\n  🔄 frameId 变化: {frame_id} → {new_fid}")
+                        frame_id = new_fid
+        else:
+            btn = query_button_in_iframe(cdp, frame_id, args.text)
+
         if not btn or not btn.get("found"):
             if btn and btn.get("matches"):
                 print(f"  ❌ 找到 {len(btn['matches'])} 个匹配「{args.text}」的元素,但选择器逻辑没有唯一命中")
@@ -344,6 +371,7 @@ def main():
                 print(f"  ❌ 当前没有「{args.text}」按钮(可能是已出餐/还没新订单)")
             print("  💡 用法: python3 cdp_poc.py --text \"出餐\" 查其他文案")
             print("  💡 用法: python3 cdp_poc.py --text \"出餐\" --dry-run 只查不点")
+            print("  💡 用法: python3 cdp_poc.py --watch 3  轮询模式,找到就点")
             return 1
 
         print(f"  ✅ 找到按钮:")
@@ -359,14 +387,14 @@ def main():
 
         # Step 4: 冷却(可选)
         if args.cooldown > 0:
-            print(f"\n[4/5] 出餐前冷却 {args.cooldown} 秒 ...")
+            print(f"\n[4/6] 出餐前冷却 {args.cooldown} 秒 ...")
             print("  (避免出餐速度异常触发风控/订单系统告警)")
             for remaining in range(args.cooldown, 0, -5):
                 print(f"  ⏳ 剩余 {remaining} 秒 ...", end="\r")
                 time.sleep(5)
             print(f"  ✅ 冷却完毕{'':30s}")
         else:
-            print(f"\n[4/5] 跳过冷却(直接点)")
+            print(f"\n[4/6] 跳过冷却(直接点)")
 
         # 最后再查一次按钮(订单可能在冷却期间被骑手/系统处理掉)
         if args.cooldown > 0:
@@ -381,10 +409,10 @@ def main():
                 btn = btn2
             print(f"  ✅ 按钮仍在,坐标 ({btn['x']:.1f}, {btn['y']:.1f})")
 
-        # Step 5: 真实点击
+        # Step 5: 真实点击「上报出餐」
         # 关键:按钮坐标是 iframe viewport 内坐标,Input.dispatchMouseEvent 用 page 坐标
         # 要加 iframe 在主 page 里的 offset
-        print("\n[5/5] 发送真实鼠标事件 ...")
+        print("\n[5/6] 点击「上报出餐」...")
         iframe_offset = get_iframe_offset(cdp, frame_id)
         if iframe_offset:
             page_x = btn["x"] + iframe_offset["x"]
@@ -395,6 +423,31 @@ def main():
             page_x, page_y = btn["x"], btn["y"]
             print(f"  ⚠️  无法获取 iframe 偏移,使用 iframe 坐标 ({page_x:.0f}, {page_y:.0f})")
         dispatch_mouse(cdp, page_x, page_y)
+
+        # Step 6: 等二次确认弹窗,点「真实上报」
+        print("\n[6/6] 等待二次确认弹窗 ...")
+        confirm_btn = None
+        for i in range(10):  # 最多等 3 秒(10×0.3s)
+            time.sleep(0.3)
+            # 「真实上报」是确认按钮,「稍后上报」是取消
+            confirm_btn = query_button_in_iframe(cdp, frame_id, "真实上报")
+            if confirm_btn and confirm_btn.get("found"):
+                print(f"  ✅ 第 {i+1} 次查到「真实上报」按钮 ({confirm_btn['x']:.0f}, {confirm_btn['y']:.0f})")
+                break
+            print(f"  ⏳ 等待弹窗 ... ({i+1}/10)", end="\r")
+
+        if confirm_btn and confirm_btn.get("found"):
+            if iframe_offset:
+                page_x2 = confirm_btn["x"] + iframe_offset["x"]
+                page_y2 = confirm_btn["y"] + iframe_offset["y"]
+            else:
+                page_x2, page_y2 = confirm_btn["x"], confirm_btn["y"]
+            print(f"  🎯 点击「真实上报」page ({page_x2:.0f}, {page_y2:.0f})")
+            time.sleep(random.uniform(0.3, 0.6))  # 稍微等一下让人看到弹窗
+            dispatch_mouse(cdp, page_x2, page_y2)
+            print("  ✅ 已点击「真实上报」")
+        else:
+            print("  ⚠️  未检测到二次确认弹窗(可能无需确认或弹窗已关闭)")
 
         # 验证
         print("\n[验证] 等待 3 秒让 UI 更新 ...")
@@ -411,7 +464,7 @@ def main():
             print("  ✅ 按钮已消失 → 订单已出餐,PoC 成功")
             return 0
         else:
-            print("  ⚠️  按钮仍存在(可能需要二次确认/弹窗未关闭)")
+            print("  ⚠️  按钮仍存在(可能出餐未成功)")
             print("  💡 看浏览器窗口确认订单是否真出餐了")
             return 0
 

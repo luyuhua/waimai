@@ -79,16 +79,24 @@ Add automatic cook-complete to Taobao Flash (饿了么商家版) merchant order 
 - 关键:**用用户已养好画像的 Chrome**,不重新启动新会话(避免新会话的低信任度)
 - 跨域 iframe 的 `executionContextId` 通过 `Page.createIsolatedWorld` 在跨域 frame 里建执行上下文取得
 
-#### PoC 计划
+#### PoC 验证结果 (2026-06-19): ✅ 全链路跑通
 
-1. 启动用户 Chrome 时加 `--remote-debugging-port=9222`
-2. Python/Node 脚本连 `ws://127.0.0.1:9222/devtools/page/<targetId>`
-3. 用 `Page.getFrameTree` 找 `napos-order-pc.faas.ele.me` 的 frame
-4. `Page.createIsolatedWorld` 在该 frame 建执行上下文
-5. `Runtime.evaluate` 查询"上报出餐"按钮位置 (`getBoundingClientRect`)
-6. `Input.dispatchMouseEvent` 发 `mouseMoved` → `mousePressed` → `mouseReleased`,加 50-150ms 随机延迟模拟人手
-7. **等真实 pending_cook 订单到来时手动触发一次,只点一单,观察风控是否弹**
-8. 单点成功后,扩成 120s 轮询 + 多订单节流
+PoC 已验收通过,一次跑通完整出餐流程(查按钮 → 点击 → 二次弹窗 → 确认 → 出餐成功)。
+
+**完整流程(6 步)**:
+1. `Page.getFrameTree` 找 `napos-order-pc.faas.ele.me` 的 frameId
+2. `Page.createIsolatedWorld` 在跨域 frame 建执行上下文
+3. `Runtime.evaluate` 查"上报出餐"按钮坐标 (`getBoundingClientRect`)
+4. `Input.dispatchMouseEvent` 发真实鼠标点击(page 坐标 = iframe 坐标 + iframe offset)
+5. 等二次确认弹窗,点"真实上报"(不一定每次都有,最多等 3 秒)
+6. 验证按钮消失 = 出餐成功
+
+**已确认的关键细节**:
+- **二次确认弹窗**:点击"上报出餐"后可能弹出"您备餐时间太短，请确认是否真实上报出餐？",按钮为"稍后上报"(取消) 和"真实上报"(确认)。并非每单都弹,代码已兼容有无两种情况
+- **坐标系统**:`Input.dispatchMouseEvent` 使用 page 坐标(非 iframe viewport 坐标)。iframe 在主 page 的偏移通过 `document.querySelector('iframe[src*="napos-order-pc"]').getBoundingClientRect()` 获取(不能从 iframe 内部 `window.frameElement` 拿,跨域时是 null)
+- **watch 模式** (`--watch N`):每 N 秒轮询按钮,找到立刻点,适合等订单来的时候挂机
+- **isolated world 限制**:`arguments[0]` 在 isolated world 里是 `undefined`,参数必须拼到 JS 模板字符串里;坐标用 `Number()` 显式包装避免 CDP 序列化截断
+- **React portal 按钮**:`el.offsetParent` 可能为 null(因为 portal 的 computed parent 是 `position:fixed`),用 `getComputedStyle` + `getBoundingClientRect` + viewport 边界判断可见性
 
 #### 风险点(预判)
 
@@ -120,11 +128,12 @@ Add automatic cook-complete to Taobao Flash (饿了么商家版) merchant order 
 - Edge 换 InPrivate 窗口 ✗
 - 关闭 MetaMask 扩展 ✗(无关)
 
-### 后续若 CDP 也走不通时的备选
+### 后续计划
 
-按"侵入性"升序:
+CDP + 真实点击方案已验收通过。后续可做的增强:
 
-1. **CDP + 真实点击** (首选) — PoC 验证中
-2. **Chrome 扩展 + content script 进 iframe** — 能读 DOM,但 `el.click()` isTrusted=false,赌霸下不查 isTrusted
-3. **Electron 内嵌 Chromium** — 用 `webPreferences.websecurity:false` 关 SOP + `webContents.sendInputEvent` 走真实输入管道(等价 CDP);代价是 Electron UA/Canvas 指纹会被霸下识别
-4. **完全放弃自动化,只保留策略建议面板** — 用户手动点出餐,脚本只做时间提醒
+1. **多订单节流** — 当前每次只点 1 单;多订单时加 1-3s 随机间隔,避免短时间内密集点击
+2. **长期挂机** — `--watch` 模式已支持轮询,可配合 tmux/screen 长期运行
+3. **霸下未来检测** — CDP 协议本身不留指纹,但霸下可能在未来版本加检测,需持续观察
+
+### 若 CDP 走不通时的备选(已降级为后备)
