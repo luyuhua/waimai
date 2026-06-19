@@ -114,24 +114,18 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
         "worldName": "auto-cook-poc"
     })["executionContextId"]
 
+    # 已知能用(2026-06-19 验证):只查 button,简化可见性
     js = """
-    (() => {
+    (function() {
         const BTN_TEXT = arguments[0];
-        // 淘宝按钮是 <div> 不是 <button>,所以两个都查
-        // React 用了 portal/fixed 定位,不能用 offsetParent 判可见
         const vw = window.innerWidth, vh = window.innerHeight;
-        const candidates = document.querySelectorAll('div, button, span');
-        const matches = [];
-        for (const el of candidates) {
-            const text = (el.innerText || el.textContent || '').trim();
+        for (const el of document.querySelectorAll('button')) {
+            const text = (el.innerText || '').trim();
             if (!text.includes(BTN_TEXT)) continue;
-            const style = window.getComputedStyle(el);
-            if (style.display === 'none' || style.visibility === 'hidden') continue;
-            if (parseFloat(style.opacity) === 0) continue;
             const r = el.getBoundingClientRect();
             if (r.width < 5 || r.height < 5) continue;
             if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
-            matches.push({
+            return {
                 found: true,
                 text: text,
                 x: r.x + r.width / 2,
@@ -140,9 +134,9 @@ def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_B
                 h: r.height,
                 tag: el.tagName,
                 cls: (el.className || '').toString().slice(0, 80)
-            });
+            };
         }
-        return matches.length === 1 ? matches[0] : { found: false, matches };
+        return { found: false };
     })()
     """
     result = cdp.send("Runtime.evaluate", {
@@ -161,34 +155,25 @@ def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200
         "worldName": "auto-cook-poc"
     })["executionContextId"]
 
+    # 只查 button(已知能拿到,12 个左右)
     js = """
-    (() => {
+    (function() {
         const MAX = arguments[0];
         const out = [];
-        const seen = new Set();
-        // 只查 button 和"叶子 div"(无子元素且有文字)
-        const candidates = document.querySelectorAll('button, [role="button"], a');
         const vw = window.innerWidth, vh = window.innerHeight;
-        for (const el of candidates) {
-            const text = (el.innerText || el.textContent || '').trim();
-            if (!text || text.length > 30) continue;
-            const style = window.getComputedStyle(el);
-            if (style.display === 'none' || style.visibility === 'hidden') continue;
-            if (parseFloat(style.opacity) === 0) continue;
+        for (const el of document.querySelectorAll('button')) {
+            const text = (el.innerText || '').trim();
+            if (!text) continue;
             const r = el.getBoundingClientRect();
             if (r.width < 5 || r.height < 5) continue;
             if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
-            const key = text + '|' + Math.round(r.x) + '|' + Math.round(r.y);
-            if (seen.has(key)) continue;
-            seen.add(key);
+            const style = window.getComputedStyle(el);
             out.push({
                 text: text,
                 tag: el.tagName,
-                cls: (el.className || '').toString().slice(0, 60),
                 x: Math.round(r.x + r.width / 2),
                 y: Math.round(r.y + r.height / 2),
-                bg: style.backgroundColor,
-                cursor: style.cursor
+                bg: style.backgroundColor
             });
             if (out.length >= MAX) break;
         }
