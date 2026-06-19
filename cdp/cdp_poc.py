@@ -28,7 +28,7 @@ except ImportError:
 
 CDP_HTTP = "http://127.0.0.1:9222/json"
 IFRAME_URL_KEYWORD = "napos-order-pc.faas.ele.me"  # 订单 iframe 域名片段
-BUTTON_TEXT = "上报出餐"  # 按钮文案
+DEFAULT_BUTTON_TEXT = "上报出餐"  # 默认按钮文案
 COOLDOWN_SECONDS = 60  # 找到按钮后,强制等够 60 秒再点(避免出餐太快触发风控/异常)
 
 
@@ -107,7 +107,7 @@ def find_iframe_frame(cdp: CDP) -> Optional[str]:
     return None
 
 
-def query_button_in_iframe(cdp: CDP, frame_id: str) -> Optional[dict]:
+def query_button_in_iframe(cdp: CDP, frame_id: str, button_text: str = DEFAULT_BUTTON_TEXT) -> Optional[dict]:
     """在订单 iframe 里建隔离执行上下文,查按钮位置"""
     ctx_id = cdp.send("Page.createIsolatedWorld", {
         "frameId": frame_id,
@@ -116,17 +116,22 @@ def query_button_in_iframe(cdp: CDP, frame_id: str) -> Optional[dict]:
 
     js = """
     (() => {
+        const BTN_TEXT = arguments[0];
         // 淘宝按钮是 <div> 不是 <button>,所以两个都查
+        // React 用了 portal/fixed 定位,不能用 offsetParent 判可见
+        const vw = window.innerWidth, vh = window.innerHeight;
         const candidates = document.querySelectorAll('div, button, span');
+        const matches = [];
         for (const el of candidates) {
-            // 只看可见元素
-            if (!el.offsetParent) continue;
             const text = (el.innerText || el.textContent || '').trim();
-            if (!text.includes('上报出餐')) continue;
-            // 必须有大小
+            if (!text.includes(BTN_TEXT)) continue;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') continue;
+            if (parseFloat(style.opacity) === 0) continue;
             const r = el.getBoundingClientRect();
             if (r.width < 5 || r.height < 5) continue;
-            return {
+            if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
+            matches.push({
                 found: true,
                 text: text,
                 x: r.x + r.width / 2,
@@ -135,17 +140,68 @@ def query_button_in_iframe(cdp: CDP, frame_id: str) -> Optional[dict]:
                 h: r.height,
                 tag: el.tagName,
                 cls: (el.className || '').toString().slice(0, 80)
-            };
+            });
         }
-        return { found: false };
+        return matches.length === 1 ? matches[0] : { found: false, matches };
     })()
     """
     result = cdp.send("Runtime.evaluate", {
         "expression": js,
         "contextId": ctx_id,
-        "returnByValue": True
+        "returnByValue": True,
+        "arguments": [{"value": button_text}]
     })
     return result.get("result", {}).get("value")
+
+
+def probe_all_clickables_in_iframe(cdp: CDP, frame_id: str, max_items: int = 200) -> list:
+    """列出 iframe 里所有可见 div/button/span 的文字+坐标,用于调试选择器。"""
+    ctx_id = cdp.send("Page.createIsolatedWorld", {
+        "frameId": frame_id,
+        "worldName": "auto-cook-poc"
+    })["executionContextId"]
+
+    js = """
+    (() => {
+        const MAX = arguments[0];
+        const out = [];
+        const seen = new Set();
+        // 只查 button 和"叶子 div"(无子元素且有文字)
+        const candidates = document.querySelectorAll('button, [role="button"], a');
+        const vw = window.innerWidth, vh = window.innerHeight;
+        for (const el of candidates) {
+            const text = (el.innerText || el.textContent || '').trim();
+            if (!text || text.length > 30) continue;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') continue;
+            if (parseFloat(style.opacity) === 0) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 5 || r.height < 5) continue;
+            if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) continue;
+            const key = text + '|' + Math.round(r.x) + '|' + Math.round(r.y);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({
+                text: text,
+                tag: el.tagName,
+                cls: (el.className || '').toString().slice(0, 60),
+                x: Math.round(r.x + r.width / 2),
+                y: Math.round(r.y + r.height / 2),
+                bg: style.backgroundColor,
+                cursor: style.cursor
+            });
+            if (out.length >= MAX) break;
+        }
+        return out;
+    })()
+    """
+    result = cdp.send("Runtime.evaluate", {
+        "expression": js,
+        "contextId": ctx_id,
+        "returnByValue": True,
+        "arguments": [{"value": max_items}]
+    })
+    return result.get("result", {}).get("value") or []
 
 
 def dispatch_mouse(cdp: CDP, x: float, y: float) -> None:
@@ -191,8 +247,22 @@ def check_captcha(cdp: CDP) -> bool:
 # ---------- 主流程 ----------
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="CDP PoC: 找订单按钮 + 真实鼠标点击")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="只查按钮不点击不冷却(用于调试选择器)")
+    parser.add_argument("--probe", action="store_true",
+                        help="列出 iframe 内所有可能按钮的元素(用于探查页面结构)")
+    parser.add_argument("--text", default=DEFAULT_BUTTON_TEXT,
+                        help=f"按钮文案(默认: {DEFAULT_BUTTON_TEXT})")
+    parser.add_argument("--cooldown", type=int, default=COOLDOWN_SECONDS,
+                        help=f"点击前冷却秒数(默认: {COOLDOWN_SECONDS})")
+    args = parser.parse_args()
+
     print("=" * 60)
-    print("🛵  CDP PoC: 淘宝闪购 - 找按钮 + 真实点击")
+    mode = "DRY-RUN" if args.dry_run else ("PROBE" if args.probe else "完整(会真实点击)")
+    print(f"🛵  CDP PoC: 淘宝闪购 - 找按钮 + 真实点击 [{mode}]")
+    print(f"     按钮文案: {args.text!r} | 冷却: {args.cooldown}s")
     print("=" * 60)
 
     # Step 1: 找 tab
@@ -219,12 +289,31 @@ def main():
             return 1
         print(f"  ✅ 找到 iframe frameId = {frame_id}")
 
+        # Step 2.x: probe 模式 —— 列出所有可能按钮的元素
+        if args.probe:
+            print(f"\n[PROBE] 列出 iframe 内可见元素 ...")
+            items = probe_all_clickables_in_iframe(cdp, frame_id, max_items=200)
+            if not items:
+                print("  ❌ 没找到任何带文字的可见元素(可能 iframe 内容为空)")
+            else:
+                print(f"  ✅ 找到 {len(items)} 个:")
+                for i, it in enumerate(items):
+                    print(f"  [{i:3d}] ({it['x']:4d},{it['y']:4d}) "
+                          f"<{it['tag']:6s}> {it['text']!r} bg={it['bg']}")
+            return 0
+
         # Step 3: 查按钮
-        print(f"\n[3/5] 查找按钮「{BUTTON_TEXT}」 ...")
-        btn = query_button_in_iframe(cdp, frame_id)
+        print(f"\n[3/5] 查找按钮「{args.text}」 ...")
+        btn = query_button_in_iframe(cdp, frame_id, args.text)
         if not btn or not btn.get("found"):
-            print(f"  ❌ 当前没有「待出餐」订单(按钮未出现)")
-            print("  💡 等真实新订单进来后再跑一次")
+            if btn and btn.get("matches"):
+                print(f"  ❌ 找到 {len(btn['matches'])} 个匹配「{args.text}」的元素,但选择器逻辑没有唯一命中")
+                for i, m in enumerate(btn["matches"][:5]):
+                    print(f"     [{i}] {m['tag']}.{m['cls']} 文案={m['text']!r} 坐标=({m['x']:.0f},{m['y']:.0f})")
+            else:
+                print(f"  ❌ 当前没有「{args.text}」按钮(可能是已出餐/还没新订单)")
+            print("  💡 用法: python3 cdp_poc.py --text \"出餐\" 查其他文案")
+            print("  💡 用法: python3 cdp_poc.py --text \"出餐\" --dry-run 只查不点")
             return 1
 
         print(f"  ✅ 找到按钮:")
@@ -233,17 +322,22 @@ def main():
         print(f"     中心坐标: ({btn['x']:.1f}, {btn['y']:.1f})")
         print(f"     尺寸: {btn['w']:.0f} × {btn['h']:.0f}")
 
+        # DRY-RUN: 到此为止,只验证查询逻辑,不进入冷却/点击
+        if args.dry_run:
+            print("\n🏁 DRY-RUN 完成:按钮已找到,未点击(无副作用)")
+            return 0
+
         # Step 4: 冷却
-        print(f"\n[4/5] 出餐前冷却 {COOLDOWN_SECONDS} 秒 ...")
+        print(f"\n[4/5] 出餐前冷却 {args.cooldown} 秒 ...")
         print("  (避免出餐速度异常触发风控/订单系统告警)")
-        for remaining in range(COOLDOWN_SECONDS, 0, -5):
+        for remaining in range(args.cooldown, 0, -5):
             print(f"  ⏳ 剩余 {remaining} 秒 ...", end="\r")
             time.sleep(5)
         print(f"  ✅ 冷却完毕{'':30s}")
 
         # 最后再查一次按钮(订单可能在冷却期间被骑手/系统处理掉)
         print("\n[最后检查] 重新确认按钮仍在 ...")
-        btn2 = query_button_in_iframe(cdp, frame_id)
+        btn2 = query_button_in_iframe(cdp, frame_id, args.text)
         if not btn2 or not btn2.get("found"):
             print("  ⚠️  按钮已消失(订单可能已出餐/取消),不再点击")
             return 1
@@ -267,7 +361,7 @@ def main():
             return 2
 
         # 再查按钮是否消失
-        btn3 = query_button_in_iframe(cdp, frame_id)
+        btn3 = query_button_in_iframe(cdp, frame_id, args.text)
         if not btn3 or not btn3.get("found"):
             print("  ✅ 按钮已消失 → 订单已出餐,PoC 成功")
             return 0
