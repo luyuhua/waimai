@@ -341,6 +341,8 @@
         }).then(function(res) {
             if (res.ok) {
                 console.log('[cloud-sync #' + seq + '] orders upserted: ' + orderRecords.length);
+                // orders 提交成功后再同步 products，避免 FK 冲突
+                syncProducts();
             } else {
                 console.warn('[cloud-sync #' + seq + '] orders upsert failed: HTTP ' + res.status);
             }
@@ -348,37 +350,38 @@
             console.warn('[cloud-sync #' + seq + '] orders request error: ' + err.message);
         });
 
-        // 同步商品明细
-        var productRecords = [];
-        changedOrders.forEach(function(o) {
-            (o.products || []).forEach(function(p) {
-                productRecords.push({
-                    order_no: o.orderNo,
-                    name: p.name,
-                    unit_price: p.unitPrice,
-                    quantity: p.quantity,
-                    total_price: p.totalPrice
+        function syncProducts() {
+            var productRecords = [];
+            changedOrders.forEach(function(o) {
+                (o.products || []).forEach(function(p) {
+                    productRecords.push({
+                        order_no: o.orderNo,
+                        name: p.name,
+                        unit_price: p.unitPrice,
+                        quantity: p.quantity,
+                        total_price: p.totalPrice
+                    });
                 });
             });
-        });
 
-        if (productRecords.length > 0) {
-            fetch(SUPABASE_URL + '/rest/v1/order_products?on_conflict=order_no,name', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': 'Bearer ' + SUPABASE_KEY,
-                    'Prefer': 'resolution=merge-duplicates,return=minimal'
-                },
-                body: JSON.stringify(productRecords)
-            }).then(function(res) {
-                if (!res.ok) {
-                    console.warn('[cloud-sync #' + seq + '] products upsert failed: HTTP ' + res.status);
-                }
-            }).catch(function(err) {
-                console.warn('[cloud-sync #' + seq + '] products request error: ' + err.message);
-            });
+            if (productRecords.length > 0) {
+                fetch(SUPABASE_URL + '/rest/v1/order_products?on_conflict=order_no,name', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': 'Bearer ' + SUPABASE_KEY,
+                        'Prefer': 'resolution=merge-duplicates,return=minimal'
+                    },
+                    body: JSON.stringify(productRecords)
+                }).then(function(res) {
+                    if (!res.ok) {
+                        console.warn('[cloud-sync #' + seq + '] products upsert failed: HTTP ' + res.status);
+                    }
+                }).catch(function(err) {
+                    console.warn('[cloud-sync #' + seq + '] products request error: ' + err.message);
+                });
+            }
         }
     };
 
