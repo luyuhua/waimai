@@ -4,136 +4,133 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-美团外卖自动出餐助手 (Meituan Waimai Auto-Cook Assistant) — a bookmarklet that injects into the Meituan merchant order page (`waimaie.meituan.com`) to automatically monitor orders and click the "cook complete" button on a timer.
-
-Now also supports **淘宝闪购 (饿了么商家版, `melody.shop.ele.me`)** with the `taobaoFlash.*` scripts. See [Taobao Flash development log](#taobao-flash-development-log) for the full history of architectural decisions and pitfalls.
+美团外卖自动出餐助手 — auto-click "cook complete" on Meituan (`waimaie.meituan.com`) and Taobao Flash/饿了么 (`melody.shop.ele.me`).
 
 ## Repo structure
 
 ```
 src/
-  pageAnalyzer.js              # Standalone DOM→structured data extractor (from alibaba/page-agent)
-  domExtractor.bookmarklet.js  # Main business logic: order extraction, auto-cook engine, floating panel UI
-  domExtractor.loader.js       # Chain loader: loads pageAnalyzer.js then bookmarklet.js (Meituan only)
+  pageAnalyzer.js              # DOM→structured data extractor
+  domExtractor.bookmarklet.js  # Meituan order extraction, auto-cook engine, floating panel UI, cloud sync
+  domExtractor.loader.js       # Bookmarklet entry: chain-loads above two scripts
   bookmarklet.loader.js        # Unified auto-detect loader (Meituan + Taobao Flash)
-  taobaoFlash.bookmarklet.js   # DEPRECATED (Phase 3 API script, kept for reference, no longer developed)
-  taobaoFlash.loader.js        # DEPRECATED (Taobao-only loader, kept for reference)
+  taobaoFlash.bookmarklet.js   # DEPRECATED (API path, dead — 霸下 blocks it)
+  taobaoFlash.loader.js        # DEPRECATED
 docs/
-  index.html                   # GitHub Pages landing page with drag-to-bookmark install button
+  index.html                   # GitHub Pages landing page with drag-to-bookmark install
+cdp/
+  cdp_poc.py                   # PoC (verified): CDP find + click button, watch mode
+cdp-extension/
+  manifest.json                # chrome.debugger CDP extension
+  service-worker.js            # CDP engine: attach → find iframe → query → click → confirm
+  popup.html / popup.js        # Control panel UI
+extension/
+  service-worker.js            # TEST ONLY: SW fetch() API experiment (blocked by X5)
+  content-script.js            # TEST ONLY: cookie extraction
+supabase_schema.sql            # Supabase DDL: orders, order_products, order_events + RLS policies
 ```
 
-**Note on Taobao Flash scripts**: The bookmarklet-based approach is dead (霸下风控 blocks both DOM and API paths). Future Taobao Flash work will live in a separate `cdp/` directory outside `src/`, since CDP-based automation is a local service, not a browser script.
+## Architecture: three routes for Taobao Flash
 
-## Architecture
+| Route | Anti-fraud | Data storage | Complexity | Status |
+|---|---|---|---|---|
+| Bookmarklet / SW `fetch()` API | 霸下 blocks `window.fetch` + X5 blocks server-side | N/A | Low | **Dead** |
+| CDP `Input.dispatchMouseEvent` | `isTrusted:true`, minimal surface | Need Python for SQLite | Medium | **PoC verified** |
+| Cloud cookie-forwarding + API | Needs TLS spoof, proxy pool, signature reverse-engineering | Cloud DB | High (ongoing maintenance) | Store-bang-zhu's route |
 
-Two independent scripts loaded sequentially — neither imports the other:
+### Route 1: API (dead)
 
-1. **`pageAnalyzer.js`** — pure DOM analysis tool. Exposes `window.domExtractor()`, `window.getInteractiveElements()`, `window.findElementByText()`. Runs once on load, prints results to console. Does NOT reference any Meituan business logic.
+- 霸下 hooks `window.fetch` and `XMLHttpRequest` in page context
+- Extension Service Worker `fetch()` bypasses client-side hook, but X5 server-side validation still blocks (`FAIL_SYS_USER_VALIDATE` + captcha)
+- Even with full headers (Referer, Origin, `_m_h5_tk` cookie), `queryInProcessOrders` blocked
+- Root cause: `_m_h5_tk` CSRF token requires signature computed by page JS at request time — copying the cookie value is insufficient
+- `getPollingStrategy` works (no X5 protection), proving SW `fetch()` itself is fine
 
-2. **`domExtractor.bookmarklet.js`** — all Meituan-specific business logic. Order extraction from DOM (`extractOrders()`), auto-cook rule engine, floating control panel UI, order monitoring loop. Uses `window.__` prefixed globals for state (`__orders`, `__monitorInterval`, `__cookTimers`, etc.).
+### Route 2: CDP click (our path)
 
-3. **`domExtractor.loader.js`** — the bookmarklet entry point. Creates `<script>` tags to chain-load pageAnalyzer.js then bookmarklet.js from GitHub Pages CDN.
+- `Input.dispatchMouseEvent` goes through Chromium's real input pipeline → `isTrusted:true`
+- `Page.createIsolatedWorld` creates execution context in cross-origin iframe → bypass SOP for DOM reading
+- PoC flow verified end-to-end: find iframe → query button → click → confirm dialog → verify
+- `chrome.debugger` extension built, basic test passed (attach → find iframe → query works), awaiting real order test
+- Yellow debug banner appears briefly during `debugger.attach()`; short attach/detach cycles minimize visibility
 
-## Deployment
+### Route 3: Cloud cookie-forwarding (store-bang-zhu)
 
-Static files served via GitHub Pages at `https://luyuhua.github.io/waimai/src/`. The bookmarklet `href` loads `domExtractor.loader.js` from this CDN. No build step — edit JS directly, commit, push.
+- Extension uploads cookies + page signatures to cloud → cloud server makes API calls
+- Requires: TLS fingerprint simulation (curl_cffi), residential proxy pool, page signature extraction + recomputation, behavior timing simulation
+- Ongoing cost: must update signature algorithm every time饿了么 changes frontend code
+- Viable for commercial SaaS with paying users; overkill for single-shop use
 
-## Key technical details
+### Final decision (2026-06-20)
 
-- **iframe**: The Meituan order page loads content inside `<iframe id="hashframe">`. All order DOM queries must run in the iframe's document context. `extractOrders()` auto-detects whether it's inside or outside the iframe.
-- **CSS Modules hashes**: All Meituan class names have hash suffixes (e.g., `order-card_a1b2c`). Use `[class*="order-card"]` attribute-contains selectors, never exact class matches.
-- **Cook button is `<div>`**: The "出餐完成" button is `<div class*="submit-button">`, not `<button>`. `getCardButtons()` searches both.
-- **Two status dimensions**: Order status (`pending_accept` → `pending_cook` → `cooked`) and rider status (`待分配骑手` → `骑手已到店` → `骑手已取餐`) are independent. Status is determined by full-text keyword matching, NOT from `baseInfoRight` element.
-- **Pre-orders**: `isPreOrder` orders lack `cookRemainingTime`; virtual order time = suggested cook deadline − 20 minutes.
-- **CSP bypass**: Bookmarklet uses `javascript:` URL protocol (inline code), which browsers treat as navigation rather than script injection — bypasses Content Security Policy. Dynamic `<script>` tags would be blocked on strict-CSP sites.
+**Python CDP service is the right architecture going forward.** It gives us:
+- CDP WebSocket → real Chrome (zero anti-fraud maintenance)
+- SQLite for order data (needed for future operations dashboard)
+- Single process, no extension-as-middleware complexity
+
+The `chrome.debugger` extension can stay as a lightweight alternative when SQLite isn't needed yet, but Native Messaging (extension + Python) adds unnecessary complexity — if we need Python anyway, cut the extension and go direct CDP.
+
+## Cloud database (Supabase)
+
+**Supabase project**: `ubnjwhavibtyafyicrdv` (free tier, PostgreSQL + PostgREST REST API)
+
+| Credential | Value | Usage |
+|---|---|---|
+| URL | `https://ubnjwhavibtyafyicrdv.supabase.co` | REST API base |
+| Anon key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVibmp3aGF2aWJ0eWFmeWljcmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMDcxNzUsImV4cCI6MjA5NzU4MzE3NX0.7_3fuNhchNVuLaM6cSzDoKWMAk4ZBZI1PuwMxxj1V8M` | Browser-side sync (RLS-gated) |
+| Service role | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVibmp3aGF2aWJ0eWFmeWljcmR2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjAwNzE3NSwiZXhwIjoyMDk3NTgzMTc1fQ.v_YM3rJP_NOSn7KAr9mQ_AFzt3cXXx4ginQkH6UCUIc` | Server-side (bypasses RLS) |
+| DB password | `lyh13795319022` | PostgreSQL direct connection (pooler user: `postgres.ubnjwhavibtyafyicrdv`) |
+
+### Schema (3 tables)
+
+- **orders** — 30 columns, unique on `order_no`. Includes all 27 fields from `extractOrders()` plus `raw_json` (full order object), `first_seen_at`, `last_updated_at`
+- **order_products** — `order_no` FK → orders, unique on `(order_no, name)`. Stores line items (name, unit_price, quantity, total_price)
+- **order_events** — status change log: `order_no`, `from_status`, `to_status`, `event_time`
+
+All tables have RLS enabled with `anon_all_*` policies permitting full CRUD to anon role.
+
+### Sync flow (Meituan bookmarklet → Supabase)
+
+1. `checkOrders()` calls `syncOrdersToCloud(allOrders)` every poll cycle
+2. `syncOrdersToCloud()` content-hashes each order (orderNo + status + riderStatus + cookRemainingTime), skips unchanged
+3. Upserts changed orders via `POST /rest/v1/orders?on_conflict=order_no` with `Prefer: resolution=merge-duplicates`
+4. Upserts products via `POST /rest/v1/order_products?on_conflict=order_no,name`
+5. `syncOrderEvent()` logs status transitions to `order_events`
+6. `autoCookAll()` syncs again 500ms after completing clicks
+7. All sync requests are fire-and-forget (async, non-blocking), errors logged to console
+
+### DDL notes
+
+- `supabase_schema.sql` contains the full CREATE TABLE + RLS SQL. Paste into Supabase SQL Editor if tables need rebuilding.
+- PostgREST only supports DML (CRUD), not DDL. Table creation requires SQL Editor or direct PostgreSQL connection.
+- Direct PostgreSQL DNS (`db.ubnjwhavibtyafyicrdv.supabase.co`) may not resolve; use PgBouncer pooler at `aws-0-<region>.pooler.supabase.com:6543` with user `postgres.ubnjwhavibtyafyicrdv`.
+
+## Key technical details (Meituan)
+
+- **iframe**: Meituan loads orders inside `<iframe id="hashframe">`. Queries must run in iframe document context.
+- **CSS Modules hashes**: Use `[class*="order-card"]` attribute-contains selectors, never exact class matches.
+- **Cook button is `<div>`**: `<div class*="submit-button">`, not `<button>`. Search both.
+- **Two status dimensions**: Order status and rider status are independent, determined by full-text keyword matching.
+- **Pre-orders**: `isPreOrder` orders lack `cookRemainingTime`; virtual time = suggested cook deadline − 20 min.
+- **CSP bypass**: Bookmarklet uses `javascript:` URL protocol — browsers treat as navigation, not script injection.
+
+## Key technical details (Taobao Flash CDP)
+
+- **Button query JS**: runs via `Runtime.evaluate` with isolated world `contextId`, searches `button` and `div[class*="submit"]`
+- **Visibility check**: uses `getComputedStyle` + `getBoundingClientRect` + viewport bounds (not `offsetParent` — fails for React portals)
+- **Coordinates**: `Input.dispatchMouseEvent` uses page coordinates = iframe viewport coords + iframe offset in main page
+- **iframe offset**: must be obtained from main page `document.querySelector('iframe[src*="napos-order-pc"]').getBoundingClientRect()` — `window.frameElement` is null cross-origin
+- **Isolated world**: `arguments[0]` is undefined; parameters must be interpolated into JS template string
+- **Confirmation dialog**: may appear after clicking "上报出餐" ("您备餐时间太短，请确认是否真实上报出餐？"), buttons "稍后上报" / "真实上报"
+- **Jitter**: add ±2px random jitter and 40-150ms delays between mouse events
+- **Minimum cook time**: 60 seconds (platform limit, source: 银豹 docs)
 
 ## No build, no tests
 
-This is vanilla JS with no package.json, no build tools, no test framework. To verify changes: push to `main`, then load the bookmarklet on the Meituan merchant page and test manually. Syntax-check with `node --check <file>`.
+Vanilla JS + Python scripts. No package.json, no build tools. Syntax-check JS with `node --check <file>`. Test Python with `python3 <file>`. Test Supabase REST calls with Node.js `fetch()` (use `pg` package for direct DB access when needed).
 
 ## Git push via local proxy
-
-`git push` goes through local proxy at `http://127.0.0.1:7890` (HTTP/HTTPS). If the proxy is down or not running, push will hang on connection. Set on the command line:
 
 ```bash
 HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 git push origin main
 ```
-
-## Taobao Flash development log
-
-### Goal
-
-Add automatic cook-complete to Taobao Flash (饿了么商家版) merchant order page at `melody.shop.ele.me`.
-
-### Current architecture decision (2026-06-19): CDP 接管用户 Chrome
-
-**死路**:纯 JS 脚本(无论 DOM 还是 API)在阿里霸下风控面前都失效。
-- 霸下 hook 了 `window.fetch` 和 `XMLHttpRequest` 的完成回调,会判断请求是否来自用户点击上下文
-- 脚本里 `fetch()` / `XHR.send()` / `el.click()`(程序化点击 `isTrusted=false`) 全部会被识别为脚本操作,触发风控
-- 阿里针对不同 UA 有差异化风控(Chrome 比 Edge 容忍度高),即使完全换写法也救不回来
-- "未登录" 在 `window.open(iframe.src)` 出现是反爬检测 `window.opener` 的结果,不是真的登出
-
-**生路**:**CDP 接管用户已登录的 Chrome**,用真实鼠标输入事件点 iframe 里的"上报出餐"按钮。
-- `Input.dispatchMouseEvent` 走 Chromium `RenderWidgetHostInputDelegate` 真实输入管道,产生的事件 `isTrusted: true`,调用栈里有正常 click 事件,霸下识别为用户操作
-- `Runtime.evaluate` + iframe 的 `executionContextId` 可以跑 JS 进跨域 iframe,效果等价于"关 SOP 读 DOM"
-- 关键:**用用户已养好画像的 Chrome**,不重新启动新会话(避免新会话的低信任度)
-- 跨域 iframe 的 `executionContextId` 通过 `Page.createIsolatedWorld` 在跨域 frame 里建执行上下文取得
-
-#### PoC 验证结果 (2026-06-19): ✅ 全链路跑通
-
-PoC 已验收通过,一次跑通完整出餐流程(查按钮 → 点击 → 二次弹窗 → 确认 → 出餐成功)。
-
-**完整流程(6 步)**:
-1. `Page.getFrameTree` 找 `napos-order-pc.faas.ele.me` 的 frameId
-2. `Page.createIsolatedWorld` 在跨域 frame 建执行上下文
-3. `Runtime.evaluate` 查"上报出餐"按钮坐标 (`getBoundingClientRect`)
-4. `Input.dispatchMouseEvent` 发真实鼠标点击(page 坐标 = iframe 坐标 + iframe offset)
-5. 等二次确认弹窗,点"真实上报"(不一定每次都有,最多等 3 秒)
-6. 验证按钮消失 = 出餐成功
-
-**已确认的关键细节**:
-- **二次确认弹窗**:点击"上报出餐"后可能弹出"您备餐时间太短，请确认是否真实上报出餐？",按钮为"稍后上报"(取消) 和"真实上报"(确认)。并非每单都弹,代码已兼容有无两种情况
-- **坐标系统**:`Input.dispatchMouseEvent` 使用 page 坐标(非 iframe viewport 坐标)。iframe 在主 page 的偏移通过 `document.querySelector('iframe[src*="napos-order-pc"]').getBoundingClientRect()` 获取(不能从 iframe 内部 `window.frameElement` 拿,跨域时是 null)
-- **watch 模式** (`--watch N`):每 N 秒轮询按钮,找到立刻点,适合等订单来的时候挂机
-- **isolated world 限制**:`arguments[0]` 在 isolated world 里是 `undefined`,参数必须拼到 JS 模板字符串里;坐标用 `Number()` 显式包装避免 CDP 序列化截断
-- **React portal 按钮**:`el.offsetParent` 可能为 null(因为 portal 的 computed parent 是 `position:fixed`),用 `getComputedStyle` + `getBoundingClientRect` + viewport 边界判断可见性
-
-#### 风险点(预判)
-
-- **霸下有"行为画像"**:用用户已养熟的 Chrome,不要新装/隐身模式
-- **淘宝改版**:按钮文案可能变,`includes('出餐')` 比精确匹配稳
-- **多订单节流**:不要 1 秒内点 5 单,加 1-3s 随机间隔
-- **CDP 协议本身公开标准**,Chromium 不在 `navigator` 留指纹,但霸下未来可能加检测,长期需要备用方案
-
-### Phase 1–4 历史(已废,仅供复盘)
-
-**Phase 1 (DOM-based, 失败)**:跨域 iframe 阻挡 `contentDocument` / `eval`;`window.open` 被反爬检测 `window.opener` 报"未登录"。
-
-**Phase 2 (API 摸清, 成功)**:确认 `app-api.shop.ele.me/fulfill/weborder/<endpoint>/` JSON-RPC 可用,主要端点:
-- `OrderWebService.queryInProcessOrders` (PRIMARY,完整订单列表)
-- `ShipmentService.mealComplete` (上报出餐)
-- `PollingService.getPollingStrategy` 返回 `pollingInterval: 120000`
-- 鉴权:`metas.ksid` 从 `document.cookie` 取 + `x-shard: shopid=<shopId>` header
-
-**Phase 3 (API 脚本写完, 失败)**:在 `taobaoFlash.bookmarklet.js` 里实现了 `apiCall` / `extractOrders` / `mealComplete` / `monitorOrders`,加了 120s 轮询下限、captcha 关键字识别、5min 退避(×2 → ×8)、冷启动试探。Chrome 上对没有 in-process 订单的店铺能跑通骨架。
-
-**Phase 4 (Edge + 霸下风控, 死路)**:Edge 一启动就弹风控。调查发现 `baxiaCommon.js / HookBX$1.window.fetch` hook 了 fetch,XHR 也被 hook(`onerror status=200 readyState=4`)。fetch reject 的 error 是个 `Response` 对象(`[object Response]`)。**根因**:霸下在另一通道同步通知淘宝后端"该请求来自脚本",跟 fetch/XHR 的实现细节无关,跟 Edge UA 的会话信任度也无关(只是触发条件之一)。
-
-**已尝试且失败的反风控措施**(都不要重复做):
-- 改用 XHR ✗
-- 加 120s 轮询下限 ✗(仍然累加触发)
-- 加 captcha URL 模式识别 + 关键字匹配 ✗(只能事后停止)
-- 加 5min 退避(×2 → ×8) ✗
-- 冷启动试探(失败就不开监控) ✗
-- Edge 换 InPrivate 窗口 ✗
-- 关闭 MetaMask 扩展 ✗(无关)
-
-### 后续计划
-
-CDP + 真实点击方案已验收通过。后续可做的增强:
-
-1. **多订单节流** — 当前每次只点 1 单;多订单时加 1-3s 随机间隔,避免短时间内密集点击
-2. **长期挂机** — `--watch` 模式已支持轮询,可配合 tmux/screen 长期运行
-3. **霸下未来检测** — CDP 协议本身不留指纹,但霸下可能在未来版本加检测,需持续观察
-
-### 若 CDP 走不通时的备选(已降级为后备)

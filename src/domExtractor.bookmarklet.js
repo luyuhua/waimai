@@ -251,6 +251,152 @@
 
     // ==================== 自动出餐操作 ====================
 
+    // ==================== 云端数据同步 ====================
+
+    var SUPABASE_URL = 'https://ubnjwhavibtyafyicrdv.supabase.co';
+    var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVibmp3aGF2aWJ0eWFmeWljcmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMDcxNzUsImV4cCI6MjA5NzU4MzE3NX0.7_3fuNhchNVuLaM6cSzDoKWMAk4ZBZI1PuwMxxj1V8M';
+    var _cloudSyncSeq = 0;
+    var _orderHashes = {};
+
+    /**
+     * 将订单数据同步到 Supabase 云端数据库
+     * @param {Array} orders - extractOrders() 的返回数组
+     */
+    window.syncOrdersToCloud = function(orders) {
+        if (!orders || orders.length === 0) return;
+
+        _cloudSyncSeq++;
+        var seq = _cloudSyncSeq;
+        var now = new Date().toISOString();
+
+        // 去重：只同步内容有变化的订单
+        var changedOrders = [];
+        for (var i = 0; i < orders.length; i++) {
+            var o = orders[i];
+            var hash = o.orderNo + '|' + o.status + '|' + o.riderStatus + '|' + o.cookRemainingTime;
+            if (_orderHashes[o.orderNo] !== hash) {
+                _orderHashes[o.orderNo] = hash;
+                changedOrders.push(o);
+            }
+        }
+        if (changedOrders.length === 0) return;
+
+        var orderRecords = changedOrders.map(function(o) {
+            return {
+                order_no: o.orderNo,
+                platform: 'meituan',
+                order_index: o.orderIndex,
+                order_time: o.orderTime,
+                deliver_time: o.deliverTime,
+                customer_name: o.customerName,
+                is_new_customer: o.isNewCustomer,
+                customer_order_count: o.customerOrderCount,
+                is_fav_customer: o.isFavCustomer,
+                rider_status: o.riderStatus,
+                status: o.status,
+                status_text: o.statusText,
+                cook_time: o.cookTime,
+                suggested_cook_time: o.suggestedCookTime,
+                suggested_cook_time_sec: o.suggestedCookTimeSec,
+                is_pre_order: o.isPreOrder,
+                suggested_cook_deadline: o.suggestedCookDeadline,
+                phone_tail: o.phoneTail,
+                remark: o.remark,
+                estimated_income: o.estimatedIncome,
+                delivery_type: o.deliveryType,
+                is_flash_delivery: o.isFlashDelivery,
+                rider_name: o.riderName,
+                commission_rate: o.commissionRate,
+                commission_amount: o.commissionAmount,
+                delivery_subsidy: o.deliverySubsidy,
+                order_discount: o.orderDiscount,
+                pack_fee: o.packFee,
+                cook_remaining_time: o.cookRemainingTime,
+                buttons: o.buttons,
+                raw_json: o,
+                last_updated_at: now
+            };
+        });
+
+        fetch(SUPABASE_URL + '/rest/v1/orders?on_conflict=order_no', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_KEY,
+                'Prefer': 'resolution=merge-duplicates,return=minimal'
+            },
+            body: JSON.stringify(orderRecords)
+        }).then(function(res) {
+            if (res.ok) {
+                console.log('[cloud-sync #' + seq + '] orders upserted: ' + orderRecords.length);
+            } else {
+                console.warn('[cloud-sync #' + seq + '] orders upsert failed: HTTP ' + res.status);
+            }
+        }).catch(function(err) {
+            console.warn('[cloud-sync #' + seq + '] orders request error: ' + err.message);
+        });
+
+        // 同步商品明细
+        var productRecords = [];
+        changedOrders.forEach(function(o) {
+            (o.products || []).forEach(function(p) {
+                productRecords.push({
+                    order_no: o.orderNo,
+                    name: p.name,
+                    unit_price: p.unitPrice,
+                    quantity: p.quantity,
+                    total_price: p.totalPrice
+                });
+            });
+        });
+
+        if (productRecords.length > 0) {
+            fetch(SUPABASE_URL + '/rest/v1/order_products?on_conflict=order_no,name', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY,
+                    'Prefer': 'resolution=merge-duplicates,return=minimal'
+                },
+                body: JSON.stringify(productRecords)
+            }).then(function(res) {
+                if (!res.ok) {
+                    console.warn('[cloud-sync #' + seq + '] products upsert failed: HTTP ' + res.status);
+                }
+            }).catch(function(err) {
+                console.warn('[cloud-sync #' + seq + '] products request error: ' + err.message);
+            });
+        }
+    };
+
+    /**
+     * 记录订单状态变更事件到云端
+     */
+    window.syncOrderEvent = function(orderNo, fromStatus, toStatus) {
+        if (!orderNo || !toStatus) return;
+
+        fetch(SUPABASE_URL + '/rest/v1/order_events', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_KEY,
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+                order_no: orderNo,
+                from_status: fromStatus || null,
+                to_status: toStatus
+            })
+        }).catch(function(err) {
+            console.warn('[cloud-sync] event insert error: ' + err.message);
+        });
+    };
+
+    // ==================== 自动出餐操作 ====================
+
     /**
      * 获取订单卡片中所有可操作按钮元素。
      * 出餐按钮可能是 <button> 或 <div class="submit-button_xxx">，
@@ -335,6 +481,16 @@
 
         if (count === 0) console.log('📭 没有待出餐订单');
         else console.log(`🚀 将自动出餐 ${count} 单，间隔 ${intervalMs}ms`);
+
+        // 出餐后同步最新状态到云端
+        if (count > 0) {
+            setTimeout(function() {
+                if (window.extractOrders && window.syncOrdersToCloud) {
+                    window.syncOrdersToCloud(window.extractOrders());
+                }
+            }, count * intervalMs + 500);
+        }
+
         return count;
     };
 
@@ -415,6 +571,9 @@
             var allOrders = window.extractOrders ? window.extractOrders() : null;
             if (!allOrders || allOrders.length === 0) return;
 
+            // 云端同步（异步，不阻塞主循环）
+            if (window.syncOrdersToCloud) window.syncOrdersToCloud(allOrders);
+
             var now = new Date().toLocaleTimeString();
 
             // 重置状态追踪（首次运行时）
@@ -433,6 +592,11 @@
 
                 window.__knownOrders.add(orderNo);
                 window.__orderStatusMap[orderNo] = currentStatus;
+
+                // 同步状态变更事件到云端
+                if (statusChanged && window.syncOrderEvent) {
+                    window.syncOrderEvent(orderNo, prevStatus, currentStatus);
+                }
 
                 var isPendingCook = currentStatus === 'pending_cook';
                 var cookLabel = { pending_cook: '待出餐', cooked: '已出餐', pending_accept: '待接单', delivered: '已送达', cancelled: '已取消' };
