@@ -259,6 +259,18 @@
     var _orderHashes = {};
 
     /**
+     * 从主页面提取店铺名称
+     * @returns {string} 店铺名，如 "LUCKY椰子水·椰子冻(青浦宝龙店)"
+     */
+    function getShopName() {
+        try {
+            var el = document.querySelector('[class*="current-poi"]');
+            if (el) return el.innerText.trim();
+        } catch(e) {}
+        return '';
+    }
+
+    /**
      * 将订单数据同步到 Supabase 云端数据库
      * @param {Array} orders - extractOrders() 的返回数组
      */
@@ -273,7 +285,7 @@
         var changedOrders = [];
         for (var i = 0; i < orders.length; i++) {
             var o = orders[i];
-            var hash = o.orderNo + '|' + o.status + '|' + o.riderStatus + '|' + o.cookRemainingTime;
+            var hash = o.orderNo + '|' + o.status;
             if (_orderHashes[o.orderNo] !== hash) {
                 _orderHashes[o.orderNo] = hash;
                 changedOrders.push(o);
@@ -281,9 +293,12 @@
         }
         if (changedOrders.length === 0) return;
 
+        var shopName = getShopName();
+
         var orderRecords = changedOrders.map(function(o) {
             return {
                 order_no: o.orderNo,
+                shop_name: shopName,
                 platform: 'meituan',
                 order_index: o.orderIndex,
                 order_time: o.orderTime,
@@ -292,9 +307,7 @@
                 is_new_customer: o.isNewCustomer,
                 customer_order_count: o.customerOrderCount,
                 is_fav_customer: o.isFavCustomer,
-                rider_status: o.riderStatus,
                 status: o.status,
-                status_text: o.statusText,
                 cook_time: o.cookTime,
                 suggested_cook_time: o.suggestedCookTime,
                 suggested_cook_time_sec: o.suggestedCookTimeSec,
@@ -311,8 +324,6 @@
                 delivery_subsidy: o.deliverySubsidy,
                 order_discount: o.orderDiscount,
                 pack_fee: o.packFee,
-                cook_remaining_time: o.cookRemainingTime,
-                buttons: o.buttons,
                 raw_json: o,
                 last_updated_at: now
             };
