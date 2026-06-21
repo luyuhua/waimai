@@ -605,17 +605,25 @@
             if (window.__announcedRemarks[hash]) return;
             window.__announcedRemarks[hash] = true;
             var text = '#' + (order.orderIndex || '') + ' ' + cleaned;
-            var utter = new SpeechSynthesisUtterance(text);
-            utter.lang = 'zh-CN';
-            utter.volume = config.volume || 1.0;
-            utter.rate = config.rate || 0.9;
-            var voices = speechSynthesis.getVoices();
-            if (voices.length > 0) {
-                for (var vi = 0; vi < voices.length; vi++) {
-                    if (voices[vi].lang.indexOf('zh') === 0) { utter.voice = voices[vi]; break; }
+            var configRef = config;
+            setTimeout(function() {
+                function speakOnce() {
+                    var u = new SpeechSynthesisUtterance(text);
+                    u.lang = 'zh-CN';
+                    u.volume = configRef.volume || 1.0;
+                    u.rate = configRef.rate || 0.9;
+                    var voices = speechSynthesis.getVoices();
+                    for (var vi = 0; vi < voices.length; vi++) {
+                    if (voices[vi].lang.indexOf('zh') === 0) { u.voice = voices[vi]; break; }
+                    }
+                    speechSynthesis.speak(u);
+                    return u;
                 }
-            }
-            speechSynthesis.speak(utter);
+                var u1 = speakOnce();
+                u1.onend = function() {
+                    setTimeout(function() { speakOnce(); }, 2000);
+                };
+            }, 5000);
             panelLog('remark: #' + (order.orderIndex || '') + ' ' + remark, 'blue');
         }
 
