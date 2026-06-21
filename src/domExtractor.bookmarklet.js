@@ -178,7 +178,7 @@
 
             // 商品信息
             const products = [];
-            const productRegex = /([一-龥\w·～""（）()（）]+(?:\([^)]*\))*)\s*[￥¥](\d+\.?\d*)\s*x\s*(\d+)\s*[￥¥](\d+\.?\d*)/g;
+            const productRegex = /(.+?)\s*[￥¥](\d+\.?\d*)\s*x\s*(\d+)\s*[￥¥](\d+\.?\d*)/g;
             let pm;
             while ((pm = productRegex.exec(allText)) !== null) {
                 products.push({
