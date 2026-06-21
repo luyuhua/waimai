@@ -534,6 +534,7 @@
             rate: 0.9
         };
         window.__announcedRemarks = window.__announcedRemarks || {};
+        window.__firstPollDone = window.__firstPollDone || false;
         // Backward compatibility: migrate old field names
         if (window.__cookConfig.minDelayMin !== undefined && window.__cookConfig.afterOrderMinSec === undefined) {
             window.__cookConfig.afterOrderMinSec = Math.round(window.__cookConfig.minDelayMin * 60);
@@ -605,7 +606,6 @@
                     if (voices[vi].lang.indexOf('zh') === 0) { utter.voice = voices[vi]; break; }
                 }
             }
-            speechSynthesis.cancel();
             speechSynthesis.speak(utter);
             panelLog('remark: #' + (order.orderIndex || '') + ' ' + remark, 'blue');
         }
@@ -665,8 +665,8 @@
                     console.log('%c📦 订单详情：', 'color: #667eea; font-weight: bold;');
                     console.log(JSON.stringify(order, null, 2));
 
-                    // 语音播报备注（仅新订单）
-                    if (isNew) announceRemark(order);
+                    // 语音播报备注（仅新订单，且跳过首次轮询）
+                    if (isNew && window.__firstPollDone) announceRemark(order);
 
                     if (isPendingCook) {
                         panelLog('🔴🔴🔴 发现待出餐订单！', 'red');
@@ -779,6 +779,8 @@
                     }
                 }
             });
+
+            window.__firstPollDone = true;
 
             // 心跳提示 —— 用 allOrders 统计,不再二次扫 cards
             if (window.__monitorCheckCount % 6 === 1) {
