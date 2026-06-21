@@ -526,6 +526,14 @@
             beforeDeadlineMinSec: 120,
             beforeDeadlineMaxSec: 180
         };
+
+        // 备注播报配置
+        window.__remarkConfig = window.__remarkConfig || {
+            enabled: true,
+            volume: 1.0,
+            rate: 0.9
+        };
+        window.__announcedRemarks = window.__announcedRemarks || {};
         // Backward compatibility: migrate old field names
         if (window.__cookConfig.minDelayMin !== undefined && window.__cookConfig.afterOrderMinSec === undefined) {
             window.__cookConfig.afterOrderMinSec = Math.round(window.__cookConfig.minDelayMin * 60);
@@ -576,6 +584,30 @@
             var minMatch = timeStr.match(/(\d+)分/);
             var secMatch = timeStr.match(/(\d+)秒/);
             return (minMatch ? parseInt(minMatch[1]) * 60 : 0) + (secMatch ? parseInt(secMatch[1]) : 0);
+        }
+
+        function announceRemark(order) {
+            var config = window.__remarkConfig;
+            if (!config || !config.enabled) return;
+            var remark = order.remark;
+            if (!remark || !remark.trim()) return;
+            var hash = order.orderNo + '|' + remark;
+            if (window.__announcedRemarks[hash]) return;
+            window.__announcedRemarks[hash] = true;
+            var text = '#' + (order.orderIndex || '') + ' ' + remark;
+            var utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'zh-CN';
+            utter.volume = config.volume || 1.0;
+            utter.rate = config.rate || 0.9;
+            var voices = speechSynthesis.getVoices();
+            if (voices.length > 0) {
+                for (var vi = 0; vi < voices.length; vi++) {
+                    if (voices[vi].lang.indexOf('zh') === 0) { utter.voice = voices[vi]; break; }
+                }
+            }
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utter);
+            panelLog('remark: #' + (order.orderIndex || '') + ' ' + remark, 'blue');
         }
 
         function checkOrders() {
@@ -632,6 +664,9 @@
                     // 输出该订单的完整数据
                     console.log('%c📦 订单详情：', 'color: #667eea; font-weight: bold;');
                     console.log(JSON.stringify(order, null, 2));
+
+                    // 语音播报备注（仅新订单）
+                    if (isNew) announceRemark(order);
 
                     if (isPendingCook) {
                         panelLog('🔴🔴🔴 发现待出餐订单！', 'red');
@@ -949,6 +984,7 @@
             '    <label><input type="radio" name="waimai-strategy" value="after_order" checked> 下单后 <input type="number" id="waimai-after-min-sec" value="240" min="0" max="1800" style="width:50px">~<input type="number" id="waimai-after-max-sec" value="300" min="0" max="1800" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="before_deadline"> 建议出餐前 <input type="number" id="waimai-before-min-sec" value="120" min="0" max="600" style="width:50px">~<input type="number" id="waimai-before-max-sec" value="180" min="0" max="600" style="width:50px"> 秒</label>',
             '    <label><input type="radio" name="waimai-strategy" value="manual"> 手动出餐</label>',
+            '    <label style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;"><input type="checkbox" id="waimai-remark-toggle" checked onchange="window.__remarkConfig.enabled=this.checked;panelLog(this.checked?\'🔊 备注播报已开启\':\'🔇 备注播报已关闭\',\'blue\')"> 🔊 语音播报备注</label>',
             '  </div>',
             '  <div class="waimai-btn-row">',
             '    <button class="waimai-btn waimai-btn-start" id="waimai-btn-start" onclick="window.startMonitorFromPanel()">开始监控</button>',
