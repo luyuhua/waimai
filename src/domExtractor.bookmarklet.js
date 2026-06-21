@@ -592,10 +592,19 @@
             if (!config || !config.enabled) return;
             var remark = order.remark;
             if (!remark || !remark.trim()) return;
+            // 删除常规备注文本，过滤后为空则不播报
+            var cleaned = remark
+                .replace(/顾客需要餐具[；;]?/g, '')
+                .replace(/\[其它备注\]/g, '')
+                .replace(/放门口/g, '')
+                .replace(/不要敲门打电话/g, '')
+                .replace(/谢谢/g, '')
+                .trim();
+            if (!cleaned) return;
             var hash = order.orderNo + '|' + remark;
             if (window.__announcedRemarks[hash]) return;
             window.__announcedRemarks[hash] = true;
-            var text = '#' + (order.orderIndex || '') + ' ' + remark;
+            var text = '#' + (order.orderIndex || '') + ' ' + cleaned;
             var utter = new SpeechSynthesisUtterance(text);
             utter.lang = 'zh-CN';
             utter.volume = config.volume || 1.0;
