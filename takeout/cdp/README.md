@@ -30,7 +30,7 @@ curl http://127.0.0.1:9222/json | python3 -c "import json,sys;[print(t['url'],t[
 ## 跑 PoC
 
 ```bash
-cd /Users/luyuhua/workspace/dev/waimai/cdp
+cd takeout/cdp
 pip3 install websocket-client
 python3 cdp_poc.py
 ```

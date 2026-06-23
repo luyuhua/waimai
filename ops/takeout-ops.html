@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外卖智慧运营助手</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --primary:#4F6BED;--primary-light:#EEF1FD;--accent:#6C85F5;
+  --success:#22C55E;--success-bg:#F0FDF4;
+  --warning:#F59E0B;--warning-bg:#FFFBEB;
+  --danger:#EF4444;--danger-bg:#FEF2F2;
+  --sidebar:#1A1D2E;--bg:#F4F6FC;--card:#fff;
+  --border:rgba(0,0,0,.07);--border2:rgba(0,0,0,.04);
+  --t1:#1A1D2E;--t2:rgba(26,29,46,.55);--t3:rgba(26,29,46,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--t1);display:flex;min-height:100vh;font-size:13px}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit}
+
+/* SIDEBAR */
+#sidebar{width:220px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto}
+.sl-logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px}
+.sl-logo-icon{width:34px;height:34px;background:var(--primary);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sl-logo-text{color:#fff;font-size:14px;font-weight:700;line-height:1.2}
+.sl-logo-sub{color:rgba(255,255,255,.38);font-size:10px;margin-top:1px}
+.sl-section{padding:14px 12px 4px;font-size:10px;font-weight:600;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:.08em}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:8px;margin:1px 6px;cursor:pointer;color:rgba(255,255,255,.58);font-size:12.5px;font-weight:500;transition:all .15s;user-select:none}
+.nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9)}
+.nav-item.active{background:var(--primary);color:#fff}
+.nav-icon{width:15px;height:15px;flex-shrink:0;opacity:.8}
+.nav-item.active .nav-icon{opacity:1}
+.nav-badge{margin-left:auto;background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px}
+.sl-bottom{margin-top:auto;padding:12px;border-top:1px solid rgba(255,255,255,.06)}
+.user-row{display:flex;align-items:center;gap:8px;padding:8px 10px}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#4F6BED,#7C3AED);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;flex-shrink:0}
+.user-name{color:rgba(255,255,255,.7);font-size:12px}
+.user-role{color:rgba(255,255,255,.35);font-size:10px}
+
+/* MAIN */
+#main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* GLOBAL FILTER */
+#gf{background:#fff;border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+.gf-label{font-size:11px;color:var(--t2);white-space:nowrap}
+.gf-select{height:30px;padding:0 24px 0 10px;border:1px solid var(--border);border-radius:7px;background:#F8F9FC;color:var(--t1);font-size:12px;font-weight:500;cursor:pointer;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.gf-div{width:1px;height:18px;background:var(--border)}
+.gf-date{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:7px;background:#F8F9FC;color:var(--t1);font-size:11.5px;font-weight:500;outline:none;display:none;font-family:inherit}
+.gf-date:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+.time-tabs{display:flex;background:#F0F2F8;border-radius:7px;padding:2px;gap:1px}
+.time-tab{padding:3px 10px;border-radius:5px;font-size:11px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.time-tab.active{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.gf-right{margin-left:auto;display:flex;gap:8px}
+.btn-sm{height:30px;padding:0 12px;border:none;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--accent)}
+.btn-outline{background:#fff;border:1px solid var(--border);color:var(--t1)}
+.btn-outline:hover{background:#F8F9FC}
+
+/* PAGES */
+.page{display:none;padding:20px 24px}
+.page.active{display:block}
+.page-header{margin-bottom:16px}
+.page-title{font-size:17px;font-weight:700}
+.page-sub{font-size:12px;color:var(--t2);margin-top:3px}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 16px}
+.kpi-lbl{font-size:11px;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.kpi-val{font-size:24px;font-weight:700;line-height:1}
+.kpi-sub{font-size:11px;color:var(--t2);margin-top:6px;display:flex;align-items:center;gap:4px}
+.up{color:var(--success)}.down{color:var(--danger)}.flat{color:var(--t3)}
+.kpi.net{background:linear-gradient(135deg,#1e3a8a,#4F6BED)}
+.kpi.net .kpi-lbl,.kpi.net .kpi-sub{color:rgba(255,255,255,.65)}
+.kpi.net .kpi-val{color:#fff}
+.kpi-rate{background:rgba(255,255,255,.2);color:#fff;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600}
+
+/* CARDS */
+.card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:18px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.card-sub{font-size:11px;color:var(--t2);margin-bottom:14px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid-half{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+.span-2{grid-column:span 2}
+.span-3{grid-column:span 3}
+.chart-box{position:relative}
+.h200{height:200px}.h240{height:240px}.h280{height:280px}.h300{height:300px}.h340{height:340px}.h380{height:380px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse}
+table.tbl th{font-size:10.5px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;background:#FAFBFF}
+table.tbl td{padding:11px 12px;font-size:12.5px;border-bottom:1px solid #F3F4F9;vertical-align:middle}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl tr:hover td{background:#FAFBFF}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:500;white-space:nowrap}
+.b-green{background:#F0FDF4;color:#16A34A}
+.b-yellow{background:#FFFBEB;color:#92400E}
+.b-red{background:#FEF2F2;color:#DC2626}
+.b-blue{background:#EEF1FD;color:#4F6BED}
+.b-gray{background:#F3F4F6;color:#6B7280}
+.b-purple{background:#F5F3FF;color:#7C3AED}
+.btn-icon{width:26px;height:26px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--t2);display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+.btn-icon:hover{background:var(--primary-light);color:var(--primary)}
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:180px}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--t3);pointer-events:none}
+.search-input{height:32px;width:100%;padding:0 10px 0 30px;border:1px solid var(--border);border-radius:7px;background:#F8F9FC;color:var(--t1);font-size:12px;outline:none}
+.search-input:focus{border-color:var(--primary);background:#fff}
+.filter-pill{height:30px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--t1);font-size:11.5px;font-weight:500;cursor:pointer;outline:none;appearance:none}
+select.filter-pill{padding-right:22px;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center}
+
+/* FORMS */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:11.5px;font-weight:500;color:var(--t2)}
+.f-input{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#F8F9FC;color:var(--t1);font-size:13px;outline:none;transition:border .15s}
+.f-input:focus{border-color:var(--primary);background:#fff}
+.f-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:28px}
+.f-textarea{padding:8px 10px;min-height:72px;resize:vertical;border:1px solid var(--border);border-radius:7px;background:#F8F9FC;color:var(--t1);font-size:13px;outline:none;transition:border .15s}
+.f-textarea:focus{border-color:var(--primary);background:#fff}
+.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ALERTS */
+.alert{padding:9px 12px;border-radius:9px;font-size:12px;margin-bottom:14px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
+.alert svg{flex-shrink:0;margin-top:1px}
+.a-warn{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+.a-danger{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
+.a-info{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8}
+.a-green{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534}
+
+/* WATERFALL visual */
+.wf-rows{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.wf-row{display:flex;align-items:center;gap:10px}
+.wf-row-lbl{font-size:11.5px;color:var(--t2);width:160px;flex-shrink:0}
+.wf-bar-bg{flex:1;height:26px;border-radius:5px;background:#F0F2F8;overflow:hidden;position:relative}
+.wf-bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:8px;font-size:10.5px;font-weight:600;color:#fff;transition:width .5s;white-space:nowrap;overflow:hidden;position:absolute;top:0}
+.wf-row-amt{font-size:12.5px;font-weight:600;width:100px;text-align:right;flex-shrink:0}
+.wf-row-rt{font-size:11px;color:var(--t3);width:52px;text-align:right;flex-shrink:0}
+
+/* COST ITEMS */
+.cost-items{display:flex;flex-direction:column;gap:7px}
+.ci{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#F8F9FC;border-radius:8px;border:1px solid var(--border2)}
+.ci-info{}
+.ci-name{font-size:12.5px;font-weight:500}
+.ci-sub{font-size:10.5px;color:var(--t2);margin-top:1px}
+.ci-right{display:flex;align-items:center;gap:8px}
+.ci-amt{font-size:13px;font-weight:600}
+.ci-actions{display:flex;gap:4px}
+
+/* TOGGLE */
+.toggle{width:38px;height:20px;border-radius:999px;background:#CBD5E1;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--primary)}
+.toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.toggle.on::after{transform:translateX(18px)}
+
+/* MATCH ITEMS */
+.match-item{padding:12px 14px;background:#F8F9FC;border:1px solid var(--border);border-radius:9px;margin-bottom:8px}
+.match-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.match-src{font-size:12.5px;font-weight:500}
+.match-plat{font-size:10px;color:var(--primary);background:var(--primary-light);padding:1px 6px;border-radius:4px;font-weight:600}
+.match-arrow{color:var(--t3);font-size:12px}
+.match-status-row{display:flex;align-items:center;gap:8px;margin-top:7px}
+.match-select{height:28px;padding:0 24px 0 8px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11.5px;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;cursor:pointer}
+.match-confirm{height:28px;padding:0 10px;border:none;border-radius:6px;background:var(--primary);color:#fff;font-size:11.5px;font-weight:500;cursor:pointer}
+.match-confirm:hover{background:var(--accent)}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed #C7D2FE;border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#F8F9FF}
+.upload-zone:hover{border-color:var(--primary);background:var(--primary-light)}
+.upload-zone.drag-over{border-color:var(--primary);background:#E8ECFF;border-style:solid}
+.upload-zone-icon{font-size:28px;margin-bottom:8px}
+.upload-zone-title{font-size:13.5px;font-weight:600;margin-bottom:4px}
+.upload-zone-sub{font-size:11px;color:var(--t2)}
+
+/* REPORT CARDS */
+.report-card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 18px;cursor:pointer;transition:all .15s;margin-bottom:10px}
+.report-card:hover{border-color:var(--primary);box-shadow:0 4px 16px rgba(79,107,237,.1)}
+.rc-header{display:flex;justify-content:space-between;align-items:flex-start}
+.rc-title{font-size:13.5px;font-weight:600}
+.rc-date{font-size:11px;color:var(--t2);margin-top:2px}
+.rc-kpis{display:flex;gap:20px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)}
+.rc-kpi{font-size:11px;color:var(--t2)}
+.rc-kpi strong{display:block;font-size:14px;font-weight:700;color:var(--t1)}
+
+/* AI INSIGHTS */
+.ai-block{background:linear-gradient(135deg,#EEF1FD,#F5F3FF);border:1px solid #C7D2FE;border-radius:11px;padding:14px 16px;margin-bottom:10px}
+.ai-block-hd{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;margin-bottom:7px}
+.ai-block-body{font-size:12.5px;line-height:1.75;color:#374151}
+.ai-tag{font-size:9.5px;font-weight:700;padding:1.5px 6px;border-radius:4px}
+.ai-warn{background:#FEF3C7;color:#92400E}
+.ai-tip{background:#ECFDF5;color:#065F46}
+.ai-info{background:#EEF1FD;color:var(--primary)}
+
+/* REPORT DETAIL */
+.detail-section{margin-bottom:22px}
+.detail-section-title{font-size:13px;font-weight:700;color:var(--t1);padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* PAGINATION */
+.pagination{display:flex;justify-content:flex-end;align-items:center;gap:3px;margin-top:14px}
+.pg-btn{min-width:26px;height:26px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;transition:all .15s}
+.pg-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.pg-btn:hover:not(.active){background:#F0F2F8}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;padding:22px;width:540px;max-width:92vw;max-height:85vh;overflow-y:auto}
+.modal-title{font-size:15px;font-weight:700;margin-bottom:3px}
+.modal-sub{font-size:11.5px;color:var(--t2);margin-bottom:18px}
+.modal-close{float:right;background:none;border:none;cursor:pointer;color:var(--t2);font-size:18px;line-height:1;padding:2px}
+.modal-close:hover{color:var(--t1)}
+
+/* PAGE TABS */
+.ptabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.ptab{padding:7px 14px;font-size:12.5px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--t2);margin-bottom:-1px;transition:all .15s}
+.ptab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tcontent{display:none}
+.tcontent.active{display:block}
+
+/* SETTINGS */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border2)}
+.setting-row:last-child{border-bottom:none}
+.setting-info{}
+.setting-lbl{font-size:13px;font-weight:500}
+.setting-desc{font-size:11px;color:var(--t2);margin-top:2px}
+.setting-ctrl{flex-shrink:0}
+
+/* SCATTER QUADRANT LABELS */
+.q-label{font-size:10px;font-weight:600;position:absolute;padding:2px 6px;border-radius:4px}
+
+/* PROGRESS */
+.prog-wrap{background:#E5E7EB;border-radius:999px;height:5px;overflow:hidden;flex:1}
+.prog-bar{height:100%;border-radius:999px;background:var(--primary);transition:width .5s}
+
+/* Number input inline */
+.n-input{width:90px;height:26px;padding:0 7px;border:1px solid var(--border);border-radius:5px;background:#fff;font-size:12px;outline:none;text-align:right}
+.n-input:focus{border-color:var(--primary)}
+
+/* Divider */
+hr.div{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* Responsive */
+@media(max-width:900px){.grid-2,.grid-3,.grid-half{grid-template-columns:1fr}.span-2,.span-3{grid-column:1}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sl-logo">
+    <div class="sl-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <div>
+      <div class="sl-logo-text">外卖运营助手</div>
+      <div class="sl-logo-sub">多平台智慧管理</div>
+    </div>
+  </div>
+
+  <div class="sl-section">数据大盘</div>
+  <div class="nav-item active" data-page="revenue">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>营收概览
+  </div>
+  <div class="nav-item" data-page="users">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>用户分析
+  </div>
+  <div class="nav-item" data-page="orders">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>订单分析
+  </div>
+  <div class="nav-item" data-page="products">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>商品分析
+  </div>
+
+  <div class="sl-section">基础管理</div>
+  <div class="nav-item" data-page="dishes">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>菜品管理
+  </div>
+  <div class="nav-item" data-page="import">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>菜品导入关联
+    <span class="nav-badge">3</span>
+  </div>
+  <div class="nav-item" data-page="costs">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>每日成本录入
+  </div>
+  <div class="nav-item" data-page="fixed">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>固定成本设置
+  </div>
+
+  <div class="sl-section">智能报告</div>
+  <div class="nav-item" data-page="reports">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>运营报告
+  </div>
+  <div class="nav-item" data-page="rpt-settings">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>推送与设置
+  </div>
+
+  <div class="sl-bottom">
+    <div class="user-row">
+      <div class="user-avatar">王</div>
+      <div>
+        <div class="user-name">王老板</div>
+        <div class="user-role">管理员</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- GLOBAL FILTER -->
+<div id="gf">
+  <span class="gf-label">平台</span>
+  <select class="gf-select" id="gf-platform">
+    <option value="all">全部平台</option>
+    <option value="meituan">美团外卖</option>
+    <option value="taobao">淘宝闪购</option>
+  </select>
+  <div class="gf-div"></div>
+  <span class="gf-label">店铺</span>
+  <select class="gf-select" id="gf-store">
+    <option value="all">全部店铺</option>
+    <option value="s1">旺角港式茶餐厅</option>
+    <option value="s2">尖沙咀麻辣烫</option>
+  </select>
+  <div class="gf-div"></div>
+  <div class="time-tabs" id="time-tabs">
+    <div class="time-tab active" data-range="today">今日</div>
+    <div class="time-tab" data-range="7d">近7天</div>
+    <div class="time-tab" data-range="30d">近30天</div>
+    <div class="time-tab" data-range="custom">自定义</div>
+  </div>
+  <input type="date" class="gf-date" id="gf-date-from" title="开始日期">
+  <span style="display:none;font-size:11px;color:var(--t2);margin:0 2px" id="gf-date-sep">至</span>
+  <input type="date" class="gf-date" id="gf-date-to" title="结束日期">
+  <div class="gf-right">
+    <button class="btn-sm btn-outline" onclick="handleGlobalExport()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出
+    </button>
+    <button class="btn-sm btn-primary" onclick="showPage('reports')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>生成报告
+    </button>
+  </div>
+</div>
+
+<!-- ===== PAGE: 营收概览 ===== -->
+<div id="page-revenue" class="page active">
+  <div class="page-header">
+    <div class="page-title">营收概览</div>
+    <div class="page-sub">实时展示营业收入、毛利、净利及各层成本扣减结构 · 数据来源：美团外卖、淘宝闪购</div>
+  </div>
+  <div id="rev-alert" class="alert a-warn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span><strong>净利率预警：</strong>今日净利率 38.4%，低于您设定的健康线 40%。推广成本环比上涨 24%，建议及时调整美团竞价预算。</span>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">营业收入<span class="badge b-blue">今日</span></div>
+      <div class="kpi-val" id="rev-income">¥24,850</div>
+      <div class="kpi-sub"><span class="up">↑ +12.3%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">毛利额</div>
+      <div class="kpi-val" id="rev-gross" style="color:#4F6BED">¥14,462</div>
+      <div class="kpi-sub">毛利率 <strong>58.2%</strong></div>
+    </div>
+    <div class="kpi net">
+      <div class="kpi-lbl">实际净利 <span class="kpi-rate">净利率 38.4%</span></div>
+      <div class="kpi-val" id="rev-net">¥9,542</div>
+      <div class="kpi-sub"><span class="up" style="color:rgba(255,255,255,.8)">↑ +5.1%</span> <span style="color:rgba(255,255,255,.6)">较昨日</span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">总扣减成本</div>
+      <div class="kpi-val" style="color:#F59E0B">¥4,920</div>
+      <div class="kpi-sub">运营成本 ¥2,820 + 固定摊销 ¥2,100</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">今日订单数</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub">客单价 <strong>¥32.6</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">菜品成本合计</div>
+      <div class="kpi-val">¥10,388</div>
+      <div class="kpi-sub">成本占收入比 <strong>41.8%</strong></div>
+    </div>
+  </div>
+
+  <!-- Waterfall + Trend -->
+  <div class="grid-half" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">利润扣减瀑布图</div>
+      <div class="card-sub">从营业收入到最终净利的逐层扣减全链路可视化</div>
+      <div class="wf-rows" id="wf-rows">
+        <!-- JS rendered -->
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">近7日净利趋势</div>
+      <div class="card-sub">收入 vs 净利对比走势</div>
+      <div class="chart-box h240"><canvas id="c-rev-trend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Cost breakdown -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">运营成本构成</div>
+      <div class="card-sub">今日动态运营成本各子项占比</div>
+      <div class="chart-box h240"><canvas id="c-op-cost"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">固定成本构成</div>
+      <div class="card-sub">今日固定成本日摊各子项占比</div>
+      <div class="chart-box h240"><canvas id="c-fix-cost"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 用户分析 ===== -->
+<div id="page-users" class="page">
+  <div class="page-header">
+    <div class="page-title">用户分析</div>
+    <div class="page-sub">新老客户结构、客单价分布、配送距离分析及高频客户识别</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">总用户数（去重）</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub"><span class="up">↑ +28</span> 较上周</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">新客数</div>
+      <div class="kpi-val" style="color:#4F6BED">245</div>
+      <div class="kpi-sub">占比 <strong>32.1%</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">老客数</div>
+      <div class="kpi-val" style="color:#22C55E">518</div>
+      <div class="kpi-sub">复购率 <strong>67.9%</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平均客单价</div>
+      <div class="kpi-val">¥32.6</div>
+      <div class="kpi-sub"><span class="up">↑ +¥1.2</span> 较昨日</div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">新客 / 老客占比</div>
+      <div class="card-sub">近7日整体用户结构分布</div>
+      <div class="chart-box h260"><canvas id="c-new-old"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">新老客增长趋势</div>
+      <div class="card-sub">近7日每日新客与老客数量</div>
+      <div class="chart-box h260"><canvas id="c-user-trend"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">客单价分布</div>
+      <div class="card-sub">按金额区间统计订单分布</div>
+      <div class="chart-box h240"><canvas id="c-price-dist"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">配送距离分布</div>
+      <div class="card-sub">按配送半径统计订单分布</div>
+      <div class="chart-box h240"><canvas id="c-dist-dist"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">高频客户 TOP 10</div>
+    <div class="card-sub">按订单频次排名，可添加客户标签</div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="tbl-customers"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 订单分析 ===== -->
+<div id="page-orders" class="page">
+  <div class="page-header">
+    <div class="page-title">订单分析</div>
+    <div class="page-sub">订单量趋势、时段分布、异常指标监控</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">总订单数</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub"><span class="up">↑ +8.2%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">日均订单</div>
+      <div class="kpi-val">109</div>
+      <div class="kpi-sub">近7日均值</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">订单取消率</div>
+      <div class="kpi-val" style="color:#F59E0B">2.3%</div>
+      <div class="kpi-sub"><span class="flat">— 持平</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">退款率</div>
+      <div class="kpi-val">1.1%</div>
+      <div class="kpi-sub"><span class="down">↑ +0.3%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平均出餐时长</div>
+      <div class="kpi-val">18 min</div>
+      <div class="kpi-sub">高峰期 <strong>26 min</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平台分佣成本</div>
+      <div class="kpi-val">¥1,738</div>
+      <div class="kpi-sub">占收入比 <strong>6.9%</strong></div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">近7日订单量趋势</div>
+    <div class="card-sub">按平台分组展示每日订单数</div>
+    <div class="chart-box h280"><canvas id="c-order-trend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">订单时段分布热力图</div>
+    <div class="card-sub">各小时段订单量分布（今日）</div>
+    <div class="chart-box h220"><canvas id="c-hourly"></canvas></div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 商品分析 ===== -->
+<div id="page-products" class="page">
+  <div class="page-header">
+    <div class="page-title">商品分析</div>
+    <div class="page-sub">菜品销量、毛利排行与销量-毛利交叉四象限分析</div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">菜品销量 TOP 10</div>
+      <div class="card-sub">按近7日销售份数排名</div>
+      <div class="chart-box h320"><canvas id="c-sales-rank"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">菜品毛利贡献 TOP 10</div>
+      <div class="card-sub">按近7日毛利额排名</div>
+      <div class="chart-box h320"><canvas id="c-margin-rank"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-half" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">销量 × 毛利率 四象限分析</div>
+      <div class="card-sub">横轴为销量，纵轴为毛利率 · 气泡大小代表收入贡献 · 虚线为各维度均值</div>
+      <div class="chart-box h340" style="position:relative"><canvas id="c-scatter"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#22C55E;display:inline-block"></span>⭐ 明星品 (高销+高利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#F59E0B;display:inline-block"></span>⚠️ 走量品 (高销+低利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#4F6BED;display:inline-block"></span>💡 潜力品 (低销+高利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#EF4444;display:inline-block"></span>❌ 待淘汰 (低销+低利)</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">菜品毛利贡献度占比</div>
+      <div class="card-sub">各菜品占总毛利的比例</div>
+      <div class="chart-box h300"><canvas id="c-contrib"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 菜品管理 ===== -->
+<div id="page-dishes" class="page">
+  <div class="page-header">
+    <div class="page-title">菜品管理</div>
+    <div class="page-sub">维护自有菜品基础信息，支持批量上下架与调价</div>
+  </div>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" id="dish-search" type="text" placeholder="搜索菜品名称...">
+    </div>
+    <select class="filter-pill" id="dish-cat-filter">
+      <option value="">全部分类</option>
+      <option value="主食">主食</option>
+      <option value="小吃">小吃</option>
+      <option value="饮品">饮品</option>
+    </select>
+    <select class="filter-pill" id="dish-status-filter">
+      <option value="">全部状态</option>
+      <option value="上架">上架中</option>
+      <option value="下架">已下架</option>
+    </select>
+    <select class="filter-pill" id="dish-store-filter">
+      <option value="">全部店铺</option>
+      <option value="旺角港式茶餐厅">旺角港式茶餐厅</option>
+      <option value="尖沙咀麻辣烫">尖沙咀麻辣烫</option>
+    </select>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn-sm btn-outline" id="batch-off-btn" onclick="batchOffDishes()">批量下架</button>
+      <button class="btn-sm btn-outline" id="batch-price-btn" onclick="batchPriceDishes()">批量调价</button>
+      <button class="btn-sm btn-primary" onclick="openDishModal()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增菜品
+      </button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="dish-check-all" style="accent-color:var(--primary);cursor:pointer" onchange="toggleAllDishes(this)"></th>
+            <th>菜品名称</th><th>分类</th><th>成本价</th><th>售价</th><th>毛利率</th><th>状态</th><th>所属店铺</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="dish-tbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:11.5px;color:var(--t2)" id="dish-count-lbl">共 10 条记录</span>
+      <div class="pagination" id="dish-pagination"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 菜品导入关联 ===== -->
+<div id="page-import" class="page">
+  <div class="page-header">
+    <div class="page-title">菜品导入与关联</div>
+    <div class="page-sub">建立平台菜品名 → 自有标准菜品名的 KV 映射，自动关联订单数据</div>
+  </div>
+  <div class="ptabs" id="import-tabs">
+    <div class="ptab active" data-tab="mapping">菜品映射表 <span class="badge b-blue" style="margin-left:4px" id="mapping-count">5条</span></div>
+    <div class="ptab" data-tab="import-init">平台数据导入</div>
+    <div class="ptab" data-tab="status-overview">关联状态概览</div>
+  </div>
+
+  <!-- Tab 1: KV Mapping Table -->
+  <div id="tab-mapping" class="tcontent active">
+    <div class="toolbar">
+      <select class="gf-select" id="map-cat-filter" onchange="renderMapping()" style="width:120px">
+        <option value="all">全部分类</option><option value="主食">主食</option><option value="小吃">小吃</option><option value="饮品">饮品</option><option value="套餐">套餐</option><option value="甜品">甜品</option>
+      </select>
+      <select class="gf-select" id="map-plat-filter" onchange="renderMapping()" style="width:130px">
+        <option value="all">全部平台</option><option value="meituan">美团外卖</option><option value="taobao">淘宝闪购</option>
+      </select>
+      <div class="search-wrap" style="margin-left:8px"><svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="search-input" type="text" id="map-search" placeholder="搜索平台菜名或自有菜名..." oninput="renderMapping()"></div>
+      <button class="btn-sm btn-primary" style="margin-left:auto" onclick="openMappingModal()">+ 新增映射</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名 (K)</th><th style="width:30px"></th><th>自有标准菜品名 (V)</th><th>分类</th><th>最近匹配订单数</th><th>操作</th></tr></thead>
+          <tbody id="mapping-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Platform Data Import -->
+  <div id="tab-import-init" class="tcontent">
+    <div class="upload-zone" id="upload-zone">
+      <div class="upload-zone-icon">📂</div>
+      <div class="upload-zone-title">拖拽文件到此处，或点击选择文件</div>
+      <div class="upload-zone-sub">支持美团、淘宝闪购导出的 Excel / CSV 格式<br>字段需包含：菜品名、售价、销量（其余字段自动忽略）</div>
+      <input type="file" id="import-file-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileImport(event)">
+      <button class="btn-sm btn-primary" style="margin-top:12px;margin-left:auto;margin-right:auto" onclick="document.getElementById('import-file-input').click()">选择文件</button>
+    </div>
+    <div id="import-preview" style="display:none;margin-top:16px">
+      <div class="card-title" style="margin-bottom:10px">导入预览 — 平台菜品数据</div>
+      <div class="alert a-info" style="margin-bottom:12px">以下为文件解析结果，可逐条调整自有菜名和分类后，一键生成 KV 映射</div>
+      <div class="tbl-wrap" style="max-height:360px;overflow-y:auto">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名</th><th>平台售价</th><th>平台销量</th><th>建议自有菜名（可编辑）</th><th>分类</th></tr></thead>
+          <tbody id="import-preview-tbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button class="btn-sm btn-primary" onclick="batchCreateMappings()">一键生成映射</button>
+        <span style="font-size:11px;color:var(--t2)">将预览表中的所有条目批量创建为 KV 映射</span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">近期导入记录</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>导入时间</th><th>来源平台</th><th>店铺</th><th>导入数量</th><th>已映射</th><th>待映射</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>2026-06-21 22:30</td><td><span class="badge b-blue">美团外卖</span></td><td>旺角港式茶餐厅</td><td>42</td><td>39</td><td><span style="color:var(--warning);font-weight:600">3</span></td><td><span class="badge b-yellow">部分完成</span></td></tr>
+            <tr><td>2026-06-20 23:10</td><td><span class="badge b-purple">淘宝闪购</span></td><td>尖沙咀麻辣烫</td><td>38</td><td>38</td><td>0</td><td><span class="badge b-green">已完成</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Status Overview -->
+  <div id="tab-status-overview" class="tcontent">
+    <div class="kpi-grid" style="margin-bottom:16px" id="mapping-stats"></div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title">⚠️ 尚未建立映射的平台菜品</div>
+      <div class="card-sub">以下平台菜品名在近30天订单中出现但未建立 KV 映射，点击可快速添加</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名</th><th>近30天出现次数</th><th>操作</th></tr></thead>
+          <tbody id="unmapped-tbody">
+            <tr><td><span class="badge b-blue">美团</span></td><td>【特价】辣子鸡丁+米饭单人套餐</td><td>28</td><td><button class="btn-sm btn-outline" style="height:26px;font-size:11px" onclick="openMappingModal('meituan','【特价】辣子鸡丁+米饭单人套餐')">快速添加映射</button></td></tr>
+            <tr><td><span class="badge b-purple">淘宝闪购</span></td><td>盲盒新品尝鲜惊喜套餐</td><td>15</td><td><button class="btn-sm btn-outline" style="height:26px;font-size:11px" onclick="openMappingModal('taobao','盲盒新品尝鲜惊喜套餐')">快速添加映射</button></td></tr>
+            <tr><td><span class="badge b-purple">淘宝闪购</span></td><td>夜宵档加大份叉烧饭</td><td>12</td><td><button class="btn-sm btn-outline" style="height:26px;font-size:11px" onclick="openMappingModal('taobao','夜宵档加大份叉烧饭')">快速添加映射</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">最近映射日志</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>时间</th><th>操作</th><th>平台</th><th>平台菜品名</th><th>自有菜品名</th></tr></thead>
+          <tbody>
+            <tr><td>06-21 22:35</td><td><span class="badge b-green">新增映射</span></td><td>美团</td><td>招牌红烧肉（大份）</td><td>招牌红烧肉</td></tr>
+            <tr><td>06-21 22:32</td><td><span class="badge b-blue">编辑映射</span></td><td>淘宝闪购</td><td>珍珠奶茶冰镇款</td><td>冰镇奶茶</td></tr>
+            <tr><td>06-20 23:15</td><td><span class="badge b-green">新增映射</span></td><td>淘宝闪购</td><td>港式叉烧饭套餐</td><td>叉烧饭</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAPPING MODAL -->
+<div id="mapping-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('mapping-modal')">×</button>
+    <div class="modal-title" id="mapping-modal-title">新增菜品映射</div>
+    <div class="modal-sub">K=平台菜品名, V=自有标准菜品名, 用于订单数据自动关联</div>
+    <div class="form-grid">
+      <div class="fg">
+        <label>平台 *</label>
+        <select class="f-input f-select" id="mm-platform"><option value="meituan">美团外卖</option><option value="taobao">淘宝闪购</option></select>
+      </div>
+      <div class="fg">
+        <label>分类</label>
+        <select class="f-input f-select" id="mm-category"><option>主食</option><option>小吃</option><option>饮品</option><option>套餐</option><option>甜品</option></select>
+      </div>
+      <div class="fg span-2">
+        <label>平台菜品名 (K) *</label>
+        <input class="f-input" type="text" id="mm-platform-name" placeholder="如：招牌红烧肉（大份）">
+      </div>
+      <div class="fg span-2">
+        <label>自有标准菜品名 (V) *</label>
+        <input class="f-input" type="text" id="mm-own-name" placeholder="如：招牌红烧肉" list="mm-dish-suggestions">
+        <datalist id="mm-dish-suggestions"></datalist>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('mapping-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveMapping()">保存映射</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 每日成本录入 ===== -->
+<div id="page-costs" class="page">
+  <div class="page-header">
+    <div class="page-title">每日运营成本录入</div>
+    <div class="page-sub">录入当日动态运营成本，自动参与当日净利计算</div>
+  </div>
+  <div class="grid-half">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="card-title">今日运营成本录入</div>
+            <div class="card-sub" style="margin-bottom:0">2026-06-22 · 旺角港式茶餐厅</div>
+          </div>
+          <input type="date" class="f-input" value="2026-06-22" style="width:160px">
+        </div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>推广费用（元）</label>
+            <input type="number" class="f-input" id="c-promo" placeholder="¥ 0.00" value="1500">
+            <span style="font-size:10.5px;color:var(--t2)">美团/淘宝闪购竞价排名等</span>
+          </div>
+          <div class="fg">
+            <label>霸王餐补贴（元）</label>
+            <input type="number" class="f-input" id="c-bwc" placeholder="¥ 0.00" value="800">
+            <span style="font-size:10.5px;color:var(--t2)">平台霸王餐活动垫付</span>
+          </div>
+          <div class="fg">
+            <label>大额订单补贴（元）</label>
+            <input type="number" class="f-input" id="c-big" placeholder="¥ 0.00" value="520">
+            <span style="font-size:10.5px;color:var(--t2)">大额客损/优惠补贴</span>
+          </div>
+          <div class="fg">
+            <label>其他临时成本（元）</label>
+            <input type="number" class="f-input" id="c-other" placeholder="¥ 0.00" value="0">
+            <span style="font-size:10.5px;color:var(--t2)">可在备注中说明原因</span>
+          </div>
+          <div class="fg span-2">
+            <label>备注</label>
+            <textarea class="f-textarea" placeholder="说明今日特殊费用或备注..."></textarea>
+          </div>
+        </div>
+        <div id="cost-custom-rows"></div>
+        <button class="btn-sm btn-outline" style="margin-top:10px" onclick="addCustomCostRow()">+ 添加自定义成本项</button>
+        <div class="form-actions">
+          <button class="btn-sm btn-outline">清空</button>
+          <button class="btn-sm btn-primary" onclick="saveCosts()">保存今日录入</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">近7日成本录入记录</div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>日期</th><th>推广</th><th>霸王餐</th><th>大额补贴</th><th>合计</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>06-21</td><td>¥1,200</td><td>¥650</td><td>¥380</td><td style="font-weight:600">¥2,230</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+              <tr><td>06-20</td><td>¥1,800</td><td>¥900</td><td>¥420</td><td style="font-weight:600">¥3,120</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+              <tr><td>06-19</td><td>¥1,100</td><td>¥700</td><td>¥290</td><td style="font-weight:600">¥2,090</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- Right: live summary -->
+    <div>
+      <div class="card" style="position:sticky;top:70px">
+        <div class="card-title">今日净利实时预览</div>
+        <div class="card-sub">基于当前录入数据自动计算</div>
+        <div class="wf-rows" id="cost-summary-rows"></div>
+        <hr class="div">
+        <div style="font-size:11px;color:var(--t2);line-height:1.6">
+          <div>• 营业收入来源：平台自动同步</div>
+          <div>• 菜品成本来源：菜品成本价 × 当日销量</div>
+          <div>• 固定成本来源：已配置的日摊金额</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 固定成本设置 ===== -->
+<div id="page-fixed" class="page">
+  <div class="page-header">
+    <div class="page-title">固定成本设置</div>
+    <div class="page-sub">配置月度固定支出，系统按月天数自动日摊计入每日净利计算</div>
+  </div>
+  <div class="grid-half">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="card-title">固定成本配置</div>
+            <div class="card-sub" style="margin-bottom:0">旺角港式茶餐厅 · 每月配置生效</div>
+          </div>
+          <button class="btn-sm btn-primary" onclick="openFixedModal()">+ 添加固定成本项</button>
+        </div>
+        <div id="fixed-cost-list"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">今日固定成本日摊明细</div>
+        <div class="card-sub">2026-06-22 · 当月31天</div>
+        <div id="fixed-daily-list" style="margin-top:8px"></div>
+        <hr class="div">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+          <span style="color:var(--t2)">今日固定成本合计</span>
+          <strong style="font-size:15px">¥2,100</strong>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">本月固定成本概览</div>
+        <div class="card-sub">6月份累计固定支出</div>
+        <div class="chart-box h200" style="margin-top:8px"><canvas id="c-fixed-month"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 运营报告 ===== -->
+<div id="page-reports" class="page">
+  <div class="page-header">
+    <div class="page-title">运营报告</div>
+    <div class="page-sub">AI 自动生成日报与周报，支持在线查看、PDF 导出与定时推送</div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div class="ptabs" style="margin-bottom:0;border:none" id="report-type-tabs">
+      <div class="ptab active" data-rtype="daily">日报</div>
+      <div class="ptab" data-rtype="weekly">周报</div>
+    </div>
+    <button class="btn-sm btn-primary" onclick="generateReport()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      立即生成今日报告
+    </button>
+  </div>
+  <div id="report-list"></div>
+</div>
+
+<!-- ===== PAGE: 报告设置 ===== -->
+<div id="page-rpt-settings" class="page">
+  <div class="page-header">
+    <div class="page-title">推送与报告设置</div>
+    <div class="page-sub">配置报告自动推送时间、推送渠道和报告包含的模块</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">推送时间配置</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">每日日报推送</div>
+          <div class="setting-desc">每天自动推送运营日报</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;align-items:center;gap:10px">
+          <input type="time" class="f-input" value="22:30" style="width:100px">
+          <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">每周周报推送</div>
+          <div class="setting-desc">每周一早上自动推送周报</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;align-items:center;gap:10px">
+          <input type="time" class="f-input" value="09:00" style="width:100px">
+          <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">异常实时预警</div>
+          <div class="setting-desc">净利率骤降或成本异常时立即推送</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+      <hr class="div">
+      <div class="card-title" style="margin-bottom:14px">推送渠道</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">微信工作群</div>
+          <div class="setting-desc">已配置 · 运营核心群</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">钉钉机器人</div>
+          <div class="setting-desc">未配置</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;gap:8px;align-items:center">
+          <button class="btn-sm btn-outline" style="height:26px;font-size:11px">配置</button>
+          <button class="toggle" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">邮件推送</div>
+          <div class="setting-desc">boss@wangjicha.com</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:14px">报告模板配置</div>
+        <div style="font-size:12px;color:var(--t2);margin-bottom:10px">选择日报包含的数据模块</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> 核心指标卡片（收入 / 毛利 / 净利）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> 成本明细（运营成本 + 固定成本日摊）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> TOP 菜品销量变动</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> AI 运营分析与建议</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 用户结构（新老客占比）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 订单时段分布热力图</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 异常预警详情</label>
+        </div>
+        <div class="form-actions" style="border-top:none;margin-top:12px;padding-top:0">
+          <button class="btn-sm btn-primary">保存模板配置</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">净利率预警阈值</div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>净利率低于此值时触发预警（%）</label>
+          <input type="number" class="f-input" value="40" style="width:100px">
+        </div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>推广成本占收入比超过此值预警（%）</label>
+          <input type="number" class="f-input" value="12" style="width:100px">
+        </div>
+        <div class="fg">
+          <label>退款率超过此值预警（%）</label>
+          <input type="number" class="f-input" value="3" style="width:100px">
+        </div>
+        <div class="form-actions" style="border-top:none;margin-top:12px;padding-top:0">
+          <button class="btn-sm btn-primary">保存阈值</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #main -->
+
+<!-- DISH MODAL -->
+<div id="dish-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('dish-modal')">×</button>
+    <div class="modal-title" id="dish-modal-title">新增菜品</div>
+    <div class="modal-sub">填写菜品基础信息，成本价变更将自动记录历史</div>
+    <div class="form-grid">
+      <div class="fg">
+        <label>菜品名称 *</label>
+        <input class="f-input" type="text" id="dm-name" placeholder="如：招牌红烧肉">
+      </div>
+      <div class="fg">
+        <label>分类 *</label>
+        <select class="f-input f-select" id="dm-cat">
+          <option>主食</option><option>小吃</option><option>饮品</option><option>套餐</option><option>甜品</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>成本价（元）*</label>
+        <input class="f-input" type="number" id="dm-cost" placeholder="0.00">
+      </div>
+      <div class="fg">
+        <label>售价（元）*</label>
+        <input class="f-input" type="number" id="dm-price" placeholder="0.00">
+      </div>
+      <div class="fg">
+        <label>所属店铺</label>
+        <select class="f-input f-select" id="dm-store">
+          <option>旺角港式茶餐厅</option><option>尖沙咀麻辣烫</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>状态</label>
+        <select class="f-input f-select" id="dm-status"><option>上架</option><option>下架</option></select>
+      </div>
+      <div class="fg span-2">
+        <label>制作流程（可选）</label>
+        <textarea class="f-textarea" id="dm-proc" placeholder="简要描述制作步骤..."></textarea>
+      </div>
+      <div class="fg span-2">
+        <label>备注（可选）</label>
+        <input class="f-input" type="text" id="dm-note" placeholder="其他说明信息">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('dish-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveDish()">保存菜品</button>
+    </div>
+  </div>
+</div>
+
+<!-- FIXED COST MODAL -->
+<div id="fixed-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('fixed-modal')">×</button>
+    <div class="modal-title">添加固定成本项</div>
+    <div class="modal-sub">配置后系统自动按月天数日摊，无需每日重复录入</div>
+    <div class="form-grid">
+      <div class="fg span-2"><label>成本项名称 *</label><input class="f-input" type="text" placeholder="如：门店租金"></div>
+      <div class="fg"><label>月金额（元）*</label><input class="f-input" type="number" placeholder="0.00"></div>
+      <div class="fg"><label>所属店铺</label><select class="f-input f-select"><option>旺角港式茶餐厅</option><option>尖沙咀麻辣烫</option></select></div>
+      <div class="fg span-2"><label>备注</label><input class="f-input" type="text" placeholder="说明此成本项..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('fixed-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveFixed()">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT DETAIL MODAL -->
+<div id="report-modal" class="modal-overlay">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <button class="modal-close" onclick="closeModal('report-modal')">×</button>
+    <div id="report-modal-content"></div>
+  </div>
+</div>
+
+<script>
+// ========= MOCK DATA =========
+const DISHES = [
+  {id:1,name:'叉烧饭',cat:'主食',cost:12,price:28,store:'旺角港式茶餐厅',status:'上架',sales:420},
+  {id:2,name:'冰镇奶茶',cat:'饮品',cost:5,price:16,store:'旺角港式茶餐厅',status:'上架',sales:380},
+  {id:3,name:'麻辣烫套餐',cat:'主食',cost:22,price:38,store:'尖沙咀麻辣烫',status:'上架',sales:320},
+  {id:4,name:'鱼蛋河粉',cat:'主食',cost:10,price:25,store:'旺角港式茶餐厅',status:'上架',sales:280},
+  {id:5,name:'港式煲仔饭',cat:'主食',cost:19,price:32,store:'旺角港式茶餐厅',status:'上架',sales:250},
+  {id:6,name:'清炒时蔬',cat:'小吃',cost:6,price:18,store:'尖沙咀麻辣烫',status:'上架',sales:210},
+  {id:7,name:'蜜汁叉烧',cat:'主食',cost:18,price:38,store:'旺角港式茶餐厅',status:'上架',sales:165},
+  {id:8,name:'虾饺蒸笼',cat:'小吃',cost:20,price:42,store:'旺角港式茶餐厅',status:'下架',sales:130},
+  {id:9,name:'招牌红烧肉',cat:'主食',cost:28,price:45,store:'旺角港式茶餐厅',status:'上架',sales:180},
+  {id:10,name:'卤水猪蹄',cat:'小吃',cost:30,price:48,store:'尖沙咀麻辣烫',status:'上架',sales:95}
+];
+
+const FIXED_COSTS = [
+  {id:1,name:'门店月租金',monthly:12000,store:'旺角港式茶餐厅',active:true},
+  {id:2,name:'水电费',monthly:3200,store:'旺角港式茶餐厅',active:true},
+  {id:3,name:'员工人工成本',monthly:45000,store:'旺角港式茶餐厅',active:true},
+  {id:4,name:'设备折旧摊销',monthly:1800,store:'旺角港式茶餐厅',active:false},
+];
+
+const DISH_MAPPINGS = [
+  {id:1,platform:'meituan',platformName:'招牌红烧肉（大份）',ownName:'招牌红烧肉',category:'主食',matchCount:156},
+  {id:2,platform:'taobao',platformName:'港式叉烧饭套餐',ownName:'叉烧饭',category:'主食',matchCount:420},
+  {id:3,platform:'taobao',platformName:'珍珠奶茶冰镇款',ownName:'冰镇奶茶',category:'饮品',matchCount:380},
+  {id:4,platform:'meituan',platformName:'麻辣烫单人套餐',ownName:'麻辣烫套餐',category:'主食',matchCount:320},
+  {id:5,platform:'taobao',platformName:'蜜汁叉烧大份',ownName:'叉烧饭',category:'主食',matchCount:0},
+];
+
+const MATCH_PENDING = [
+  {id:1,src:'【特价】辣子鸡丁+米饭单人套餐',plat:'美团外卖',candidates:['麻辣烫套餐','叉烧饭','港式煲仔饭']},
+  {id:2,src:'盲盒新品尝鲜惊喜套餐',plat:'淘宝闪购',candidates:[]},
+  {id:3,src:'夜宵档加大份叉烧饭',plat:'淘宝闪购',candidates:['叉烧饭','蜜汁叉烧']},
+];
+
+const REPORTS = [
+  {id:'r1',type:'daily',date:'2026-06-22',store:'全部店铺',income:24850,gross:14462,net:9542,orders:763,ai:true},
+  {id:'r2',type:'daily',date:'2026-06-21',store:'全部店铺',income:22380,gross:13008,net:8921,orders:718,ai:true},
+  {id:'r3',type:'daily',date:'2026-06-20',store:'全部店铺',income:26100,gross:15232,net:10120,orders:812,ai:true},
+  {id:'r4',type:'weekly',date:'2026-06-16 ~ 2026-06-22',store:'全部店铺',income:168320,gross:97946,net:65388,orders:5124,ai:true},
+  {id:'r5',type:'daily',date:'2026-06-19',store:'全部店铺',income:19540,gross:11358,net:7841,orders:621,ai:false},
+];
+
+const CUSTOMERS = [
+  {rank:1,id:'C0023',orders:28,spend:986,lastOrder:'今日',tag:'高频老客'},
+  {rank:2,id:'C0087',orders:22,spend:728,lastOrder:'昨日',tag:'高频老客'},
+  {rank:3,id:'C0156',orders:19,spend:612,lastOrder:'今日',tag:''},
+  {rank:4,id:'C0341',orders:15,spend:491,lastOrder:'3天前',tag:''},
+  {rank:5,id:'C0502',orders:14,spend:453,lastOrder:'今日',tag:''},
+];
+
+// ========= STATE =========
+let state = {page:'revenue', store:'all', platform:'all', time:'today'};
+const charts = {};
+
+function fmt(n){return '¥'+n.toLocaleString('zh-CN',{minimumFractionDigits:0})}
+function pct(a,b){return ((a/b)*100).toFixed(1)+'%'}
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function exportCSV(filename,headers,rows){
+  const BOM='﻿';
+  const csv=BOM+[headers.join(','),...rows.map(r=>r.map(v=>'"'+(v==null?'':String(v)).replace(/"/g,'""')+'"').join(','))].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename+'.csv';document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+function handleGlobalExport(){
+  const p=state.page;
+  if(p==='revenue'){
+    exportCSV('营收数据',['指标','金额'],DISHES.reduce((a,d)=>d.status==='上架'?[...a,[d.name,'¥'+d.price*d.sales]]:a,[['营业收入','¥24,850'],['菜品成本','¥10,388'],['毛利','¥14,462'],['运营成本','¥2,820'],['固定成本日摊','¥2,100'],['净利','¥9,542']]));
+  }else if(p==='orders'){
+    exportCSV('订单数据',['时段','订单量'],Array.from({length:24},(_,i)=>[i+':00',[0,0,2,3,12,28,65,82,95,72,55,62,88,72,48,38,32,45,68,85,92,78,52,18][i]]));
+  }else if(p==='users'){
+    exportCSV('客户数据',['排名','客户名称','订单数','客单价'],[
+      ['1','张先生',68,'¥42.5'],['2','李女士',55,'¥38.2'],['3','王同学',48,'¥45.1'],
+      ['4','赵先生',42,'¥36.8'],['5','陈女士',38,'¥41.3'],['6','刘先生',35,'¥39.7'],
+      ['7','周女士',32,'¥44.2'],['8','吴先生',28,'¥37.5'],['9','郑女士',25,'¥43.0'],['10','冯先生',22,'¥40.1']
+    ]);
+  }else if(p==='products'){
+    const sorted=[...DISHES].sort((a,b)=>b.sales-a.sales);
+    exportCSV('商品数据',['菜品名称','销量','毛利率','毛利额'],sorted.map(d=>[d.name,d.sales,((d.price-d.cost)/d.price*100).toFixed(1)+'%','¥'+(d.price-d.cost)*d.sales]));
+  }else if(p==='dishes'){
+    const all=DISHES.filter(d=>{
+      if(dishFilter.search && !d.name.includes(dishFilter.search))return false;
+      if(dishFilter.cat && d.cat!==dishFilter.cat)return false;
+      if(dishFilter.status && d.status!==dishFilter.status)return false;
+      if(dishFilter.store && d.store!==dishFilter.store)return false;
+      return true;
+    });
+    exportCSV('菜品管理',['菜品名称','分类','成本价','售价','毛利率','状态','所属店铺'],all.map(d=>[d.name,d.cat,'¥'+d.cost.toFixed(2),'¥'+d.price.toFixed(2),((d.price-d.cost)/d.price*100).toFixed(1)+'%',d.status,d.store]));
+  }else if(p==='reports'){
+    exportCSV('运营报告',['类型','日期','店铺','收入','毛利','净利','订单数'],REPORTS.map(r=>[r.type==='daily'?'日报':'周报',r.date,r.store,r.income,r.gross,r.net,r.orders]));
+  }
+}
+
+// ========= NAVIGATION =========
+function showPage(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg=document.getElementById('page-'+page);
+  if(pg)pg.classList.add('active');
+  const ni=document.querySelector('[data-page="'+page+'"]');
+  if(ni)ni.classList.add('active');
+  state.page=page;
+  renderPage(page);
+}
+
+function renderPage(page){
+  switch(page){
+    case 'revenue': renderRevenue();break;
+    case 'users': renderUsers();break;
+    case 'orders': renderOrders();break;
+    case 'products': renderProducts();break;
+    case 'dishes': renderDishes();break;
+    case 'import': renderImport();break;
+    case 'costs': renderCosts();break;
+    case 'fixed': renderFixed();break;
+    case 'reports': renderReports();break;
+  }
+}
+
+// ========= REVENUE PAGE =========
+function renderRevenue(){
+  // Waterfall rows
+  const income=24850,cogs=10388,gross=14462,opCost=2820,fixCost=2100,net=9542;
+  const rows=[
+    {label:'营业收入',amount:income,rate:'100%',color:'#4F6BED',width:100,deduct:false},
+    {label:'减：菜品成本',amount:-cogs,rate:pct(cogs,income),color:'#EF4444',width:pct(cogs,income).replace('%',''),deduct:true},
+    {label:'= 毛利',amount:gross,rate:pct(gross,income),color:'#10B981',width:pct(gross,income).replace('%',''),deduct:false,bold:true},
+    {label:'减：运营成本',amount:-opCost,rate:pct(opCost,income),color:'#F59E0B',width:pct(opCost,income).replace('%',''),deduct:true},
+    {label:'减：固定成本摊销',amount:-fixCost,rate:pct(fixCost,income),color:'#F59E0B',width:pct(fixCost,income).replace('%',''),deduct:true},
+    {label:'= 实际净利',amount:net,rate:pct(net,income),color:'#22C55E',width:pct(net,income).replace('%',''),deduct:false,bold:true},
+  ];
+  const wf=document.getElementById('wf-rows');
+  wf.innerHTML=rows.map(r=>`
+    <div class="wf-row">
+      <div class="wf-row-lbl" style="${r.bold?'font-weight:700;color:var(--t1)':''}">${r.label}</div>
+      <div class="wf-bar-bg">
+        <div class="wf-bar-fill" style="width:${Math.max(parseFloat(r.width),4)}%;background:${r.color}">
+          ${parseFloat(r.width)>12?r.rate:''}
+        </div>
+      </div>
+      <div class="wf-row-amt" style="color:${r.deduct?'#EF4444':'var(--t1)'}${r.bold?';font-weight:700':''}">${r.deduct?'-':''} ${fmt(Math.abs(r.amount))}</div>
+      <div class="wf-row-rt">${r.deduct?'-':''} ${r.rate}</div>
+    </div>
+  `).join('');
+
+  // Revenue trend chart
+  dc('c-rev-trend');
+  const ctx=document.getElementById('c-rev-trend').getContext('2d');
+  charts['c-rev-trend']=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:['6/16','6/17','6/18','6/19','6/20','6/21','6/22'],
+      datasets:[
+        {label:'营业收入',data:[21200,19800,24100,19540,26100,22380,24850],borderColor:'#4F6BED',backgroundColor:'rgba(79,107,237,.08)',borderWidth:2,fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#4F6BED'},
+        {label:'净利',data:[8100,7420,9870,7841,10120,8921,9542],borderColor:'#22C55E',backgroundColor:'rgba(34,197,94,.06)',borderWidth:2,fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#22C55E'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:11},padding:12}}},scales:{y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},callback:v=>'¥'+v.toLocaleString()}},x:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+
+  // Op cost pie
+  dc('c-op-cost');
+  const ctx2=document.getElementById('c-op-cost').getContext('2d');
+  charts['c-op-cost']=new Chart(ctx2,{
+    type:'doughnut',
+    data:{
+      labels:['推广费用','霸王餐补贴','大额订单补贴','其他'],
+      datasets:[{data:[1500,800,520,0],backgroundColor:['#4F6BED','#F59E0B','#EF4444','#10B981'],borderWidth:0,hoverOffset:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11},padding:8}}}}
+  });
+
+  // Fixed cost pie
+  dc('c-fix-cost');
+  const ctx3=document.getElementById('c-fix-cost').getContext('2d');
+  charts['c-fix-cost']=new Chart(ctx3,{
+    type:'doughnut',
+    data:{
+      labels:['房租摊销','水电摊销','人工摊销'],
+      datasets:[{data:[387,103,1452],backgroundColor:['#7C3AED','#0EA5E9','#F97316'],borderWidth:0,hoverOffset:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11},padding:8}}}}
+  });
+}
+
+// ========= USERS PAGE =========
+function renderUsers(){
+  const tbl=document.getElementById('tbl-customers');
+  tbl.innerHTML=`<thead><tr><th>排名</th><th>用户ID</th><th>订单次数</th><th>累计消费</th><th>最近下单</th><th>标签</th><th>操作</th></tr></thead>
+  <tbody>${CUSTOMERS.map(c=>`<tr>
+    <td><strong>#${c.rank}</strong></td>
+    <td style="font-family:monospace">${c.id}</td>
+    <td>${c.orders} 次</td>
+    <td>${fmt(c.spend)}</td>
+    <td>${c.lastOrder}</td>
+    <td>${c.tag?`<span class="badge b-purple">${c.tag}</span>`:'-'}</td>
+    <td><button class="btn-icon" title="编辑标签" onclick="editCustomerTag('${c.id}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button></td>
+  </tr>`).join('')}</tbody>`;
+
+  // New vs old pie
+  dc('c-new-old');
+  const ctx=document.getElementById('c-new-old').getContext('2d');
+  charts['c-new-old']=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:['新客','老客'],datasets:[{data:[245,518],backgroundColor:['#4F6BED','#22C55E'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11},padding:10}},
+      tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} 人 (${((ctx.raw/763)*100).toFixed(1)}%)`}}}}
+  });
+
+  // User trend
+  dc('c-user-trend');
+  const ctx2=document.getElementById('c-user-trend').getContext('2d');
+  charts['c-user-trend']=new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:['6/16','6/17','6/18','6/19','6/20','6/21','6/22'],
+      datasets:[
+        {label:'新客',data:[32,28,45,29,52,38,41],backgroundColor:'#4F6BED',borderRadius:4,stack:'s'},
+        {label:'老客',data:[68,72,91,74,98,82,67],backgroundColor:'#22C55E',borderRadius:4,stack:'s'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11}}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+  });
+
+  // Price distribution
+  dc('c-price-dist');
+  const ctx3=document.getElementById('c-price-dist').getContext('2d');
+  charts['c-price-dist']=new Chart(ctx3,{
+    type:'bar',
+    data:{labels:['0-15元','15-25元','25-35元','35-50元','50-80元','80元+'],datasets:[{data:[42,128,218,195,120,60],backgroundColor:'#4F6BED',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+  });
+
+  // Distance distribution
+  dc('c-dist-dist');
+  const ctx4=document.getElementById('c-dist-dist').getContext('2d');
+  charts['c-dist-dist']=new Chart(ctx4,{
+    type:'bar',
+    data:{labels:['0-1 km','1-2 km','2-3 km','3-5 km','5-8 km','8km+'],datasets:[{data:[180,245,168,95,48,27],backgroundColor:'#10B981',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+  });
+}
+
+function editCustomerTag(id){
+  const c=CUSTOMERS.find(x=>x.id===id);
+  if(!c)return;
+  const newTag=prompt('编辑客户标签\n\n客户: '+c.id+'\n当前标签: '+(c.tag||'无'),c.tag||'');
+  if(newTag===null)return;
+  c.tag=newTag.trim();
+  renderUsers();
+}
+
+// ========= ORDERS PAGE =========
+function renderOrders(){
+  dc('c-order-trend');
+  const ctx=document.getElementById('c-order-trend').getContext('2d');
+  charts['c-order-trend']=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:['6/16','6/17','6/18','6/19','6/20','6/21','6/22'],
+      datasets:[
+        {label:'美团外卖',data:[152,138,178,141,198,162,182],borderColor:'#4F6BED',borderWidth:2,tension:.4,pointRadius:3,fill:false,pointBackgroundColor:'#4F6BED'},
+        {label:'淘宝闪购',data:[130,130,156,120,176,141,160],borderColor:'#10B981',borderWidth:2,tension:.4,pointRadius:3,fill:false,pointBackgroundColor:'#10B981'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11},padding:12}}},scales:{y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+
+  // Hourly distribution
+  dc('c-hourly');
+  const ctx2=document.getElementById('c-hourly').getContext('2d');
+  const hourlyData=[0,0,2,3,12,28,65,82,95,72,55,62,88,72,48,38,32,45,68,85,92,78,52,18];
+  const hourLabels=Array.from({length:24},(_,i)=>i+':00');
+  const maxVal=Math.max(...hourlyData);
+  charts['c-hourly']=new Chart(ctx2,{
+    type:'bar',
+    data:{labels:hourLabels,datasets:[{
+      data:hourlyData,
+      backgroundColor:hourlyData.map(v=>{
+        const ratio=v/maxVal;
+        if(ratio>0.8)return '#EF4444';
+        if(ratio>0.5)return '#F59E0B';
+        if(ratio>0.2)return '#4F6BED';
+        return '#CBD5E1';
+      }),
+      borderRadius:4,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} 单`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+  });
+}
+
+// ========= PRODUCTS PAGE =========
+function renderProducts(){
+  const names=DISHES.map(d=>d.name);
+  const salesData=[...DISHES].sort((a,b)=>b.sales-a.sales);
+  const marginData=[...DISHES].sort((a,b)=>((b.price-b.cost)/b.price)-((a.price-a.cost)/a.price));
+
+  // Sales rank
+  dc('c-sales-rank');
+  const ctx=document.getElementById('c-sales-rank').getContext('2d');
+  charts['c-sales-rank']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:salesData.map(d=>d.name),
+      datasets:[{data:salesData.map(d=>d.sales),backgroundColor:'rgba(79,107,237,.75)',borderRadius:4,borderSkipped:false}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`销量: ${ctx.raw} 份`}}},scales:{x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+
+  // Margin rank  
+  dc('c-margin-rank');
+  const ctx2=document.getElementById('c-margin-rank').getContext('2d');
+  charts['c-margin-rank']=new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:marginData.map(d=>d.name),
+      datasets:[{data:marginData.map(d=>parseFloat(((d.price-d.cost)/d.price*100).toFixed(1))),backgroundColor:'rgba(16,185,129,.75)',borderRadius:4,borderSkipped:false}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`毛利率: ${ctx.raw}%`}}},scales:{x:{max:100,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},callback:v=>v+'%'}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+  });
+
+  // Scatter
+  dc('c-scatter');
+  const ctx3=document.getElementById('c-scatter').getContext('2d');
+  const medSales=230, medMargin=50;
+  const scatterData=DISHES.map(d=>{
+    const margin=(d.price-d.cost)/d.price*100;
+    let color;
+    if(d.sales>=medSales && margin>=medMargin) color='rgba(34,197,94,.8)';
+    else if(d.sales>=medSales && margin<medMargin) color='rgba(245,158,11,.8)';
+    else if(d.sales<medSales && margin>=medMargin) color='rgba(79,107,237,.8)';
+    else color='rgba(239,68,68,.8)';
+    return {x:d.sales,y:parseFloat(margin.toFixed(1)),r:Math.sqrt(d.price*d.sales/500)*4,color,label:d.name};
+  });
+  charts['c-scatter']=new Chart(ctx3,{
+    type:'bubble',
+    data:{datasets:scatterData.map(d=>({label:d.label,data:[{x:d.x,y:d.y,r:Math.max(d.r,8)}],backgroundColor:d.color,borderColor:'rgba(0,0,0,.1)',borderWidth:1}))},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: 销量${ctx.raw.x}份, 毛利率${ctx.raw.y}%`}}},
+      scales:{
+        x:{title:{display:true,text:'销量（份）',font:{size:10}},grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
+        y:{title:{display:true,text:'毛利率（%）',font:{size:10}},grid:{color:'rgba(0,0,0,.05)',drawBorder:false},ticks:{font:{size:10},callback:v=>v+'%'},min:30,max:80}
+      }
+    }
+  });
+
+  // Contribution pie
+  dc('c-contrib');
+  const ctx4=document.getElementById('c-contrib').getContext('2d');
+  const topDishes=[...DISHES].sort((a,b)=>(b.price-b.cost)*b.sales-(a.price-a.cost)*a.sales).slice(0,6);
+  const otherMargin=DISHES.slice(6).reduce((s,d)=>(d.price-d.cost)*d.sales+s,0);
+  charts['c-contrib']=new Chart(ctx4,{
+    type:'doughnut',
+    data:{
+      labels:[...topDishes.map(d=>d.name),'其他'],
+      datasets:[{data:[...topDishes.map(d=>(d.price-d.cost)*d.sales),otherMargin],backgroundColor:['#4F6BED','#22C55E','#F59E0B','#EF4444','#7C3AED','#0EA5E9','#9CA3AF'],borderWidth:0,hoverOffset:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'52%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10},padding:6}}}}
+  });
+}
+
+// ========= DISHES PAGE =========
+let dishFilter={search:'',cat:'',status:'',store:''};
+let dishPage=1;
+const dishPerPage=7;
+
+function renderDishes(){
+  let data=DISHES.filter(d=>{
+    if(dishFilter.search && !d.name.includes(dishFilter.search)) return false;
+    if(dishFilter.cat && d.cat!==dishFilter.cat) return false;
+    if(dishFilter.status && d.status!==dishFilter.status) return false;
+    if(dishFilter.store && d.store!==dishFilter.store) return false;
+    return true;
+  });
+  const total=data.length;
+  const pages=Math.ceil(total/dishPerPage);
+  const start=(dishPage-1)*dishPerPage;
+  const slice=data.slice(start,start+dishPerPage);
+  document.getElementById('dish-count-lbl').textContent=`共 ${total} 条记录`;
+  const tbody=document.getElementById('dish-tbody');
+  tbody.innerHTML=slice.map(d=>{
+    const margin=((d.price-d.cost)/d.price*100).toFixed(1);
+    return `<tr>
+      <td><input type="checkbox" style="accent-color:var(--primary);cursor:pointer"></td>
+      <td><strong>${d.name}</strong></td>
+      <td><span class="badge b-blue">${d.cat}</span></td>
+      <td>¥${d.cost.toFixed(2)}</td>
+      <td>¥${d.price.toFixed(2)}</td>
+      <td><span style="color:${parseFloat(margin)>55?'#22C55E':parseFloat(margin)>40?'#F59E0B':'#EF4444'};font-weight:600">${margin}%</span></td>
+      <td><span class="badge ${d.status==='上架'?'b-green':'b-gray'}">${d.status}</span></td>
+      <td style="font-size:11.5px;color:var(--t2)">${d.store}</td>
+      <td>
+        <button class="btn-icon" title="编辑" onclick="openDishModal('${d.name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn-icon" title="成本历史" onclick="showCostHistory('${d.name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button>
+        <button class="btn-icon" title="删除" style="color:#EF4444" onclick="deleteDish('${d.name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  const pgEl=document.getElementById('dish-pagination');
+  let pgHtml='';
+  for(let i=1;i<=pages;i++){pgHtml+=`<button class="pg-btn${i===dishPage?' active':''}" data-pg="${i}">${i}</button>`;}
+  pgEl.innerHTML=pgHtml;
+  pgEl.querySelectorAll('.pg-btn').forEach(b=>b.addEventListener('click',()=>{dishPage=parseInt(b.dataset.pg);renderDishes();}));
+}
+
+// ========= IMPORT PAGE =========
+let mappingEditingId = null;
+let importPreviewData = [];
+
+function renderImport(){
+  renderMapping();
+  renderStatusOverview();
+}
+
+function renderMapping(){
+  const tbody = document.getElementById('mapping-tbody');
+  if(!tbody)return;
+  const cat = document.getElementById('map-cat-filter')?.value || 'all';
+  const plat = document.getElementById('map-plat-filter')?.value || 'all';
+  const search = (document.getElementById('map-search')?.value || '').toLowerCase();
+  let data = DISH_MAPPINGS.filter(m => {
+    if(cat !== 'all' && m.category !== cat) return false;
+    if(plat !== 'all' && m.platform !== plat) return false;
+    if(search && !m.platformName.toLowerCase().includes(search) && !m.ownName.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  document.getElementById('mapping-count').textContent = data.length + '条';
+  const platLabel = p => p === 'meituan' ? '美团外卖' : '淘宝闪购';
+  const platBadge = p => p === 'meituan' ? 'b-blue' : 'b-purple';
+  tbody.innerHTML = data.map(m => `
+    <tr>
+      <td><span class="badge ${platBadge(m.platform)}">${platLabel(m.platform)}</span></td>
+      <td><strong>${escHtml(m.platformName)}</strong></td>
+      <td style="text-align:center;color:var(--t3)">→</td>
+      <td><strong>${escHtml(m.ownName)}</strong></td>
+      <td><span class="badge b-gray">${m.category}</span></td>
+      <td style="font-weight:600;color:${m.matchCount>0?'var(--primary)':'var(--t3)'}">${m.matchCount}</td>
+      <td>
+        <button class="btn-icon" title="编辑" onclick="editMapping(${m.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn-icon" title="删除" style="color:#EF4444" onclick="deleteMapping(${m.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function openMappingModal(platform, platformName){
+  mappingEditingId = null;
+  document.getElementById('mapping-modal-title').textContent = '新增菜品映射';
+  document.getElementById('mm-platform').value = platform || 'meituan';
+  document.getElementById('mm-platform-name').value = platformName || '';
+  document.getElementById('mm-own-name').value = '';
+  document.getElementById('mm-category').value = '主食';
+  // Fill datalist with existing dish names
+  const dl = document.getElementById('mm-dish-suggestions');
+  dl.innerHTML = DISHES.map(d => `<option value="${d.name}">`).join('');
+  document.getElementById('mapping-modal').classList.add('open');
+}
+
+function editMapping(id){
+  const m = DISH_MAPPINGS.find(x => x.id === id);
+  if(!m)return;
+  mappingEditingId = id;
+  document.getElementById('mapping-modal-title').textContent = '编辑菜品映射';
+  document.getElementById('mm-platform').value = m.platform;
+  document.getElementById('mm-platform-name').value = m.platformName;
+  document.getElementById('mm-own-name').value = m.ownName;
+  document.getElementById('mm-category').value = m.category;
+  const dl = document.getElementById('mm-dish-suggestions');
+  dl.innerHTML = DISHES.map(d => `<option value="${d.name}">`).join('');
+  document.getElementById('mapping-modal').classList.add('open');
+}
+
+function saveMapping(){
+  const platform = document.getElementById('mm-platform').value;
+  const platformName = document.getElementById('mm-platform-name').value.trim();
+  const ownName = document.getElementById('mm-own-name').value.trim();
+  const category = document.getElementById('mm-category').value;
+  if(!platformName){ alert('请输入平台菜品名 (K)'); return; }
+  if(!ownName){ alert('请输入自有标准菜品名 (V)'); return; }
+  if(mappingEditingId){
+    const m = DISH_MAPPINGS.find(x => x.id === mappingEditingId);
+    if(m){ m.platform = platform; m.platformName = platformName; m.ownName = ownName; m.category = category; }
+  } else {
+    const newId = Math.max(0, ...DISH_MAPPINGS.map(x => x.id)) + 1;
+    DISH_MAPPINGS.push({ id: newId, platform, platformName, ownName, category, matchCount: 0 });
+  }
+  mappingEditingId = null;
+  closeModal('mapping-modal');
+  renderMapping();
+  renderStatusOverview();
+}
+
+function deleteMapping(id){
+  if(!confirm('确认删除此映射？删除后相关订单将无法自动关联。')) return;
+  const idx = DISH_MAPPINGS.findIndex(x => x.id === id);
+  if(idx >= 0) DISH_MAPPINGS.splice(idx, 1);
+  renderMapping();
+  renderStatusOverview();
+}
+
+function handleFileImport(event){
+  const file = event.target.files[0];
+  if(!file)return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if(lines.length < 2){ alert('文件为空或格式不正确'); return; }
+    // Detect platform from filename or first line
+    const fn = file.name.toLowerCase();
+    const platform = fn.includes('meituan') || fn.includes('美团') ? 'meituan' : 'taobao';
+    // Parse header and rows
+    const header = lines[0].split(/[,\t]/).map(h => h.trim().replace(/^"|"$/g,''));
+    const nameIdx = header.findIndex(h => h.includes('菜') || h.includes('品') || h.includes('名'));
+    const priceIdx = header.findIndex(h => h.includes('价') || h.includes('售'));
+    const salesIdx = header.findIndex(h => h.includes('量') || h.includes('销'));
+    importPreviewData = [];
+    for(let i = 1; i < lines.length; i++){
+      const cols = lines[i].split(/[,\t]/).map(c => c.trim().replace(/^"|"$/g,''));
+      const pname = nameIdx >= 0 ? cols[nameIdx] : cols[0];
+      if(!pname || pname === '菜品名' || pname.includes('合计')) continue;
+      importPreviewData.push({
+        platform,
+        platformName: pname,
+        price: priceIdx >= 0 ? parseFloat(cols[priceIdx]) || 0 : 0,
+        sales: salesIdx >= 0 ? parseInt(cols[salesIdx]) || 0 : 0,
+        ownName: pname.replace(/[（(].*?[）)]/g,'').replace(/【.*?】/g,'').trim(),
+        category: '主食'
+      });
+    }
+    document.getElementById('import-preview').style.display = 'block';
+    renderImportPreview();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function renderImportPreview(){
+  const tbody = document.getElementById('import-preview-tbody');
+  if(!tbody)return;
+  const platLabel = p => p === 'meituan' ? '美团外卖' : '淘宝闪购';
+  const platBadge = p => p === 'meituan' ? 'b-blue' : 'b-purple';
+  tbody.innerHTML = importPreviewData.map((d, i) => `
+    <tr>
+      <td><span class="badge ${platBadge(d.platform)}">${platLabel(d.platform)}</span></td>
+      <td>${escHtml(d.platformName)}</td>
+      <td>¥${d.price.toFixed(2)}</td>
+      <td>${d.sales}</td>
+      <td><input type="text" value="${escHtml(d.ownName)}" data-idx="${i}" class="pv-own-name" style="width:100%;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:12px"></td>
+      <td><select data-idx="${i}" class="pv-cat" style="border:1px solid var(--border);border-radius:4px;padding:2px 4px;font-size:12px"><option>主食</option><option>小吃</option><option>饮品</option><option>套餐</option><option>甜品</option></select></td>
+    </tr>
+  `).join('');
+}
+
+function batchCreateMappings(){
+  if(!importPreviewData.length){ alert('没有可导入的数据'); return; }
+  // Read user-edited values from DOM
+  document.querySelectorAll('.pv-own-name').forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    if(idx >= 0 && idx < importPreviewData.length) importPreviewData[idx].ownName = inp.value.trim();
+  });
+  document.querySelectorAll('.pv-cat').forEach(sel => {
+    const idx = parseInt(sel.dataset.idx);
+    if(idx >= 0 && idx < importPreviewData.length) importPreviewData[idx].category = sel.value;
+  });
+  let created = 0;
+  const maxId = Math.max(0, ...DISH_MAPPINGS.map(x => x.id));
+  importPreviewData.forEach((d, i) => {
+    if(!d.ownName) return;
+    // Check if mapping already exists (same platform + platformName)
+    const exists = DISH_MAPPINGS.some(m => m.platform === d.platform && m.platformName === d.platformName);
+    if(exists) return;
+    DISH_MAPPINGS.push({ id: maxId + created + 1, platform: d.platform, platformName: d.platformName, ownName: d.ownName, category: d.category, matchCount: d.sales });
+    created++;
+  });
+  importPreviewData = [];
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-file-input').value = '';
+  renderMapping();
+  renderStatusOverview();
+  alert(`已成功创建 ${created} 条 KV 映射`);
+}
+
+function renderStatusOverview(){
+  const stats = document.getElementById('mapping-stats');
+  if(!stats)return;
+  const totalOrders = 2145;
+  const mappedOrders = DISH_MAPPINGS.reduce((s, m) => s + m.matchCount, 0);
+  const unmappedOrders = totalOrders - mappedOrders;
+  const coverage = totalOrders > 0 ? ((mappedOrders / totalOrders) * 100).toFixed(1) : '0.0';
+  stats.innerHTML = `
+    <div class="kpi"><div class="kpi-num">${totalOrders.toLocaleString()}</div><div class="kpi-lbl">近30天订单总数</div></div>
+    <div class="kpi"><div class="kpi-num" style="color:#22C55E">${mappedOrders.toLocaleString()}</div><div class="kpi-lbl">已映射订单</div></div>
+    <div class="kpi"><div class="kpi-num" style="color:${unmappedOrders>0?'#EF4444':'#22C55E'}">${unmappedOrders.toLocaleString()}</div><div class="kpi-lbl">未映射订单</div></div>
+    <div class="kpi"><div class="kpi-num" style="color:${parseFloat(coverage)>80?'#22C55E':parseFloat(coverage)>50?'#F59E0B':'#EF4444'}">${coverage}%</div><div class="kpi-lbl">映射覆盖率</div></div>
+  `;
+}
+
+// ========= COSTS PAGE =========
+function renderCosts(){
+  const income=24850,cogs=10388;
+  function getOpCost(){
+    const p=parseFloat(document.getElementById('c-promo')?.value)||1500;
+    const b=parseFloat(document.getElementById('c-bwc')?.value)||800;
+    const big=parseFloat(document.getElementById('c-big')?.value)||520;
+    const o=parseFloat(document.getElementById('c-other')?.value)||0;
+    return p+b+big+o;
+  }
+  function updateSummary(){
+    const op=getOpCost(),fix=2100,gross=income-cogs,net=gross-op-fix;
+    const rows=[
+      {label:'营业收入（今日）',amt:income,color:'#4F6BED',deduct:false},
+      {label:'减：菜品成本',amt:cogs,color:'#EF4444',deduct:true},
+      {label:'= 毛利',amt:gross,color:'#10B981',deduct:false,bold:true},
+      {label:'减：运营成本（已录入）',amt:op,color:'#F59E0B',deduct:true},
+      {label:'减：固定成本日摊',amt:fix,color:'#F59E0B',deduct:true},
+      {label:'= 预估净利',amt:net,color:net>0?'#22C55E':'#EF4444',deduct:false,bold:true},
+    ];
+    const el=document.getElementById('cost-summary-rows');
+    if(!el)return;
+    el.innerHTML=rows.map(r=>`
+      <div class="wf-row" style="margin-bottom:6px">
+        <div class="wf-row-lbl" style="${r.bold?'font-weight:700;font-size:12.5px;color:var(--t1)':'font-size:11.5px'}">${r.label}</div>
+        <div class="wf-row-amt" style="color:${r.deduct?'#EF4444':r.color};font-weight:${r.bold?'700':'500'};font-size:${r.bold?'14':'13'}px">
+          ${r.deduct?'-':''}${fmt(r.amt)}
+        </div>
+      </div>
+    `).join('');
+  }
+  updateSummary();
+  ['c-promo','c-bwc','c-big','c-other'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',updateSummary);
+  });
+}
+
+// ========= FIXED COSTS PAGE =========
+function renderFixed(){
+  const list=document.getElementById('fixed-cost-list');
+  if(!list)return;
+  list.innerHTML=FIXED_COSTS.map(fc=>`
+    <div class="ci">
+      <div class="ci-info">
+        <div class="ci-name">${fc.name}</div>
+        <div class="ci-sub">${fc.store} · 每日摊算 ${fmt(Math.round(fc.monthly/31))}</div>
+      </div>
+      <div class="ci-right">
+        <div class="ci-amt">${fmt(fc.monthly)}/月</div>
+        <div class="ci-actions">
+          <button class="toggle ${fc.active?'on':''}" onclick="this.classList.toggle('on')"></button>
+          <button class="btn-icon" title="编辑"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const daily=document.getElementById('fixed-daily-list');
+  if(daily){
+    daily.innerHTML=FIXED_COSTS.filter(f=>f.active).map(fc=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
+        <span style="font-size:12px;color:var(--t2)">${fc.name}</span>
+        <span style="font-size:12.5px;font-weight:600">${fmt(Math.round(fc.monthly/31))}</span>
+      </div>
+    `).join('');
+  }
+
+  dc('c-fixed-month');
+  const ctx=document.getElementById('c-fixed-month').getContext('2d');
+  charts['c-fixed-month']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:['门店租金','水电费','人工成本'],
+      datasets:[
+        {label:'已产生',data:[8400,2240,31500],backgroundColor:'#4F6BED',borderRadius:4,stack:'s'},
+        {label:'待产生',data:[3600,960,13500],backgroundColor:'#E5E7EB',borderRadius:4,stack:'s'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11},padding:8}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},callback:v=>'¥'+v.toLocaleString()}}}}
+  });
+}
+
+// ========= REPORTS PAGE =========
+let reportType='daily';
+function renderReports(){
+  const list=document.getElementById('report-list');
+  if(!list)return;
+  const filtered=REPORTS.filter(r=>r.type===reportType);
+  list.innerHTML=filtered.map(r=>`
+    <div class="report-card" onclick="openReport('${r.id}')">
+      <div class="rc-header">
+        <div>
+          <div class="rc-title">${r.type==='daily'?'📋 运营日报':'📊 运营周报'} · ${r.date}</div>
+          <div class="rc-date">${r.store} · ${r.ai?'<span class="badge b-purple">已含 AI 分析</span>':'<span class="badge b-gray">无 AI 分析</span>'}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm btn-outline" style="height:28px" onclick="event.stopPropagation();handleGlobalExport()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV
+          </button>
+        </div>
+      </div>
+      <div class="rc-kpis">
+        <div class="rc-kpi"><strong>${fmt(r.income)}</strong>营业收入</div>
+        <div class="rc-kpi"><strong style="color:#4F6BED">${fmt(r.gross)}</strong>毛利</div>
+        <div class="rc-kpi"><strong style="color:#22C55E">${fmt(r.net)}</strong>净利</div>
+        <div class="rc-kpi"><strong>${r.orders}</strong>订单数</div>
+        <div class="rc-kpi"><strong>${pct(r.net,r.income)}</strong>净利率</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openReport(id){
+  const r=REPORTS.find(x=>x.id===id);
+  if(!r)return;
+  document.getElementById('report-modal-content').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:3px">${r.type==='daily'?'运营日报':'运营周报'} · ${r.date}</div>
+        <div style="font-size:11.5px;color:var(--t2)">${r.store} · 自动生成</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-sm btn-outline" onclick="closeModal('report-modal')">关闭</button>
+        <button class="btn-sm btn-primary" onclick="handleGlobalExport()">导出 CSV</button>
+      </div>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi"><div class="kpi-lbl">营业收入</div><div class="kpi-val">${fmt(r.income)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">毛利</div><div class="kpi-val" style="color:#4F6BED">${fmt(r.gross)}</div></div>
+      <div class="kpi net"><div class="kpi-lbl">净利 <span class="kpi-rate">${pct(r.net,r.income)}</span></div><div class="kpi-val">${fmt(r.net)}</div></div>
+      <div class="kpi"><div class="kpi-lbl">订单数</div><div class="kpi-val">${r.orders}</div></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">💡 AI 运营分析与建议</div>
+      <div class="ai-block">
+        <div class="ai-block-hd"><span class="ai-tag ai-warn">⚠️ 成本预警</span> 推广成本效率下降</div>
+        <div class="ai-block-body">今日推广费用环比上涨 <strong>24%</strong>，但带来的新客转化率仅增加 <strong>2.1%</strong>。ROI 已从上周的 3.8x 下降至 2.6x。建议在美团竞价后台将出价上限降低 15%，同时把流量重心转移至 19:00-21:00 高峰时段，预计可降低推广单位成本约 18%。</div>
+      </div>
+      <div class="ai-block">
+        <div class="ai-block-hd"><span class="ai-tag ai-tip">💡 优化建议</span> 爆款菜品毛利提升空间</div>
+        <div class="ai-block-body">【叉烧饭】近7日销量第一（420份），但受食材成本影响，毛利率仅 <strong>57.1%</strong>，低于同类均值。建议与【冰镇奶茶】组成套餐（奶茶成本仅 ¥5），套餐定价 ¥38（原价合计 ¥44），预计套餐化后综合毛利率提升至 <strong>63%</strong>，同时拉动奶茶销量约 20%。</div>
+      </div>
+      <div class="ai-block">
+        <div class="ai-block-hd"><span class="ai-tag ai-info">📊 趋势判断</span> 本周净利走势</div>
+        <div class="ai-block-body">近7日净利整体波动区间 ¥7,841 ~ ¥10,120，波动率 <strong>28.7%</strong>，主要受周末效应影响（周五/六明显拉升）。建议在周四提前备好高销品食材以避免备货不足导致缺货，历史数据显示周四缺货损失约 ¥1,200/次。</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">💰 成本明细</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#F8F9FC;border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:8px;font-weight:600">运营成本</div>
+          ${[['推广费用','¥1,500'],['霸王餐补贴','¥800'],['大额订单补贴','¥520']].map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>${k}</span><span style="font-weight:600">${v}</span></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0 0;border-top:1px solid var(--border);margin-top:6px;font-weight:700"><span>合计</span><span>¥2,820</span></div>
+        </div>
+        <div style="background:#F8F9FC;border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--t2);margin-bottom:8px;font-weight:600">固定成本日摊</div>
+          ${[['门店租金摊销','¥387'],['水电费摊销','¥103'],['人工成本摊销','¥1,452'],['设备折旧','¥0（已暂停）']].map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="${v.includes('暂停')?'color:var(--t3)':''}">${k}</span><span style="font-weight:600;${v.includes('暂停')?'color:var(--t3)':''}">${v}</span></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0 0;border-top:1px solid var(--border);margin-top:6px;font-weight:700"><span>合计</span><span>¥2,100</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">🏆 今日 TOP 菜品变动</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${[{name:'叉烧饭',sales:60,change:'+8',up:true},{name:'冰镇奶茶',sales:54,change:'+12',up:true},{name:'港式煲仔饭',sales:35,change:'-5',up:false}].map(d=>`
+          <div style="background:#F8F9FC;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:600">${d.name}</div>
+            <div style="font-size:18px;font-weight:700;margin:4px 0">${d.sales}份</div>
+            <span class="badge ${d.up?'b-green':'b-red'}">${d.change}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  document.getElementById('report-modal').classList.add('open');
+}
+
+function generateReport(){
+  const btn=event.target;
+  btn.textContent='⏳ AI 分析中...';
+  btn.disabled=true;
+  setTimeout(()=>{
+    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 立即生成今日报告';
+    btn.disabled=false;
+    openReport('r1');
+  },1500);
+}
+
+// ========= MODALS =========
+let dishEditingId = null; // null=新增, string=编辑
+
+function openDishModal(id){
+  dishEditingId = id || null;
+  document.getElementById('dish-modal-title').textContent = id ? '编辑菜品' : '新增菜品';
+  if(id){
+    const d = DISHES.find(x=>x.name===id || x===id);
+    if(d){
+      document.getElementById('dm-name').value = d.name;
+      document.getElementById('dm-cat').value = d.cat;
+      document.getElementById('dm-cost').value = d.cost;
+      document.getElementById('dm-price').value = d.price;
+      document.getElementById('dm-store').value = d.store;
+      document.getElementById('dm-status').value = d.status;
+      document.getElementById('dm-proc').value = d.proc||'';
+      document.getElementById('dm-note').value = d.note||'';
+    }
+  }else{
+    ['dm-name','dm-cost','dm-price','dm-proc','dm-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    document.getElementById('dm-cat').value='主食';
+    document.getElementById('dm-store').value='旺角港式茶餐厅';
+    document.getElementById('dm-status').value='上架';
+  }
+  document.getElementById('dish-modal').classList.add('open');
+}
+function openFixedModal(){document.getElementById('fixed-modal').classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+function saveDish(){
+  const name=document.getElementById('dm-name').value.trim();
+  const cat=document.getElementById('dm-cat').value;
+  const cost=parseFloat(document.getElementById('dm-cost').value)||0;
+  const price=parseFloat(document.getElementById('dm-price').value)||0;
+  const store=document.getElementById('dm-store').value;
+  const status=document.getElementById('dm-status').value;
+  const proc=document.getElementById('dm-proc').value.trim();
+  const note=document.getElementById('dm-note').value.trim();
+  if(!name){alert('请输入菜品名称');return;}
+  if(dishEditingId){
+    const d=DISHES.find(x=>x.name===dishEditingId);
+    if(d){
+      if(d.cost!==cost){
+        if(!d.costHistory)d.costHistory=[];
+        d.costHistory.push({date:new Date().toISOString().slice(0,10),old:d.cost,new:cost});
+      }
+      d.name=name;d.cat=cat;d.cost=cost;d.price=price;d.store=store;d.status=status;d.proc=proc;d.note=note;
+    }
+  }else{
+    DISHES.push({name,cat,cost,price,store,status,proc,note,sales:0});
+  }
+  dishEditingId=null;
+  closeModal('dish-modal');
+  renderDishes();
+}
+function deleteDish(name){
+  if(!confirm('确认删除菜品「'+name+'」？此操作不可恢复。'))return;
+  const idx=DISHES.findIndex(d=>d.name===name);
+  if(idx>=0)DISHES.splice(idx,1);
+  renderDishes();
+}
+function showCostHistory(name){
+  const d=DISHES.find(x=>x.name===name);
+  if(!d)return;
+  const history=d.costHistory||[];
+  if(!history.length){alert('「'+name+'」暂无成本变更记录');return;}
+  document.getElementById('report-modal-content').innerHTML=`
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px">📋 ${name} · 成本变更历史</div>
+    <table class="tbl"><thead><tr><th>日期</th><th>旧成本</th><th>新成本</th><th>变动</th></tr></thead>
+    <tbody>${history.map(h=>`<tr><td>${h.date}</td><td>¥${h.old.toFixed(2)}</td><td>¥${h.new.toFixed(2)}</td><td style="color:${h.new>h.old?'#EF4444':'#22C55E'};font-weight:600">${h.new>h.old?'+':''}¥${(h.new-h.old).toFixed(2)}</td></tr>`).join('')}</tbody></table>
+    <div style="margin-top:12px;text-align:right"><button class="btn-sm btn-outline" onclick="closeModal('report-modal')">关闭</button></div>
+  `;
+  document.getElementById('report-modal').classList.add('open');
+}
+function batchOffDishes(){
+  const checks=document.querySelectorAll('#dish-tbody input[type=checkbox]:checked');
+  if(!checks.length){alert('请先勾选要操作的菜品');return;}
+  if(!confirm('确认将 '+checks.length+' 个菜品批量下架？'))return;
+  checks.forEach(cb=>{
+    const row=cb.closest('tr');
+    const nameEl=row.querySelector('td:nth-child(2) strong');
+    if(nameEl){const d=DISHES.find(x=>x.name===nameEl.textContent);if(d)d.status='下架';}
+  });
+  renderDishes();
+}
+function batchPriceDishes(){
+  const checks=document.querySelectorAll('#dish-tbody input[type=checkbox]:checked');
+  if(!checks.length){alert('请先勾选要操作的菜品');return;}
+  const newPrice=prompt('输入新售价（元）','');
+  if(newPrice===null||newPrice==='')return;
+  const price=parseFloat(newPrice);
+  if(isNaN(price)||price<=0){alert('请输入有效价格');return;}
+  checks.forEach(cb=>{
+    const row=cb.closest('tr');
+    const nameEl=row.querySelector('td:nth-child(2) strong');
+    if(nameEl){const d=DISHES.find(x=>x.name===nameEl.textContent);if(d)d.price=price;}
+  });
+  renderDishes();
+}
+function toggleAllDishes(cb){
+  document.querySelectorAll('#dish-tbody input[type=checkbox]').forEach(c=>c.checked=cb.checked);
+}
+
+let customCostCount=0;
+function addCustomCostRow(){
+  customCostCount++;
+  const wrap=document.getElementById('cost-custom-rows');
+  const row=document.createElement('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:flex-end';
+  row.innerHTML=`
+    <div class="fg"><label>成本名称</label><input class="f-input" type="text" placeholder="如：临时用工费"></div>
+    <div class="fg"><label>金额（元）</label><input class="f-input" type="number" placeholder="¥ 0.00"></div>
+    <button class="btn-icon" style="color:#EF4444;margin-bottom:2px" onclick="this.parentElement.remove()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  `;
+  wrap.appendChild(row);
+}
+
+// ========= TABS =========
+function setupTabs(containerId, contentPrefix){
+  const container=document.getElementById(containerId);
+  if(!container)return;
+  container.addEventListener('click',e=>{
+    const tab=e.target.closest('.ptab');
+    if(!tab)return;
+    container.querySelectorAll('.ptab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const key=tab.dataset.tab||tab.dataset.rtype;
+    if(tab.dataset.tab){
+      document.querySelectorAll('[id^="tab-"]').forEach(c=>c.classList.remove('active'));
+      const target=document.getElementById('tab-'+key);
+      if(target){target.classList.add('active');if(key==='mapping')renderMapping();if(key==='status-overview')renderStatusOverview();}
+    }
+    if(tab.dataset.rtype){reportType=key;renderReports();}
+  });
+}
+
+// ========= FILTERS =========
+function setupFilters(){
+  document.getElementById('gf-platform').addEventListener('change',e=>{state.platform=e.target.value;renderPage(state.page);});
+  document.getElementById('gf-store').addEventListener('change',e=>{state.store=e.target.value;renderPage(state.page);});
+  document.getElementById('time-tabs').addEventListener('click',e=>{
+    const tab=e.target.closest('.time-tab');
+    if(!tab)return;
+    document.querySelectorAll('.time-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    state.time=tab.dataset.range;
+    const isCustom=tab.dataset.range==='custom';
+    const df=document.getElementById('gf-date-from'),dt=document.getElementById('gf-date-to'),ds=document.getElementById('gf-date-sep');
+    df.style.display=isCustom?'':'none';
+    dt.style.display=isCustom?'':'none';
+    ds.style.display=isCustom?'':'none';
+    if(isCustom){
+      if(!df.value){
+        const end=new Date(),start=new Date();
+        start.setDate(start.getDate()-30);
+        df.value=start.toISOString().slice(0,10);
+        dt.value=end.toISOString().slice(0,10);
+      }
+    }
+    renderPage(state.page);
+  });
+  document.getElementById('gf-date-from').addEventListener('change',()=>{renderPage(state.page)});
+  document.getElementById('gf-date-to').addEventListener('change',()=>{renderPage(state.page)});
+  document.getElementById('dish-search').addEventListener('input',e=>{dishFilter.search=e.target.value;dishPage=1;renderDishes();});
+  document.getElementById('dish-cat-filter').addEventListener('change',e=>{dishFilter.cat=e.target.value;dishPage=1;renderDishes();});
+  document.getElementById('dish-status-filter').addEventListener('change',e=>{dishFilter.status=e.target.value;dishPage=1;renderDishes();});
+  document.getElementById('dish-store-filter').addEventListener('change',e=>{dishFilter.store=e.target.value;dishPage=1;renderDishes();});
+}
+
+// ========= MODAL CLOSE ON OVERLAY =========
+document.querySelectorAll('.modal-overlay').forEach(overlay=>{
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.classList.remove('open');});
+});
+
+// ========= NAV =========
+document.querySelectorAll('.nav-item[data-page]').forEach(item=>{
+  item.addEventListener('click',()=>showPage(item.dataset.page));
+});
+
+// ========= INIT =========
+function init(){
+  setupFilters();
+  setupTabs('import-tabs','tab-');
+  setupTabs('report-type-tabs','');
+  // Upload zone click
+  const uz = document.getElementById('upload-zone');
+  if(uz){
+    uz.addEventListener('click',() => document.getElementById('import-file-input').click());
+    uz.addEventListener('dragover',e => { e.preventDefault(); uz.classList.add('drag-over'); });
+    uz.addEventListener('dragleave',() => uz.classList.remove('drag-over'));
+    uz.addEventListener('drop',e => { e.preventDefault(); uz.classList.remove('drag-over'); if(e.dataTransfer.files[0]){ document.getElementById('import-file-input').files = e.dataTransfer.files; handleFileImport({target:{files:e.dataTransfer.files}}); } });
+  }
+  renderRevenue();
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

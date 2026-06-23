@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外卖智慧运营助手</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center">
+  <div style="width:380px;max-width:100%">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:32px;margin-bottom:8px">📊</div>
+      <div style="font-size:18px;font-weight:700;color:var(--t1)">外卖智慧运营助手</div>
+      <div style="font-size:12px;color:var(--t3);margin-top:4px">登录以连接真实数据</div>
+    </div>
+    <div id="auth-card" style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:24px">
+      <div style="font-size:15px;font-weight:600;margin-bottom:16px;text-align:center" id="auth-mode-label">登录</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">邮箱</label>
+        <input id="auth-email" type="email" placeholder="输入邮箱地址" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">密码</label>
+        <input id="auth-password" type="password" placeholder="输入密码" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div id="auth-error" style="color:#EF4444;font-size:11px;margin-bottom:12px;display:none"></div>
+      <button id="auth-submit-btn" class="btn-sm btn-primary" style="width:100%;height:36px">登录</button>
+      <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--t3)">
+        <span id="auth-toggle-text">没有账号？</span>
+        <a href="#" id="auth-toggle-link" style="color:var(--primary)">立即注册</a>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:16px">
+      <button id="auth-skip-btn" style="background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;text-decoration:underline">跳过登录，使用演示数据</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sl-logo">
+    <div class="sl-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <div>
+      <div class="sl-logo-text">外卖运营助手</div>
+      <div class="sl-logo-sub">多平台智慧管理</div>
+    </div>
+  </div>
+
+  <div class="sl-section">数据大盘</div>
+  <div class="nav-item active" data-page="revenue">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>营收概览
+  </div>
+  <div class="nav-item" data-page="users">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>用户分析
+  </div>
+  <div class="nav-item" data-page="orders">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>订单分析
+  </div>
+  <div class="nav-item" data-page="products">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>商品分析
+  </div>
+
+  <div class="sl-section">基础管理</div>
+  <div class="nav-item" data-page="dishes">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>菜品管理
+  </div>
+  <div class="nav-item" data-page="import">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>菜品导入关联
+    <span class="nav-badge">3</span>
+  </div>
+  <div class="nav-item" data-page="costs">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>每日成本录入
+  </div>
+  <div class="nav-item" data-page="fixed">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>固定成本设置
+  </div>
+
+  <div class="sl-section">智能报告</div>
+  <div class="nav-item" data-page="reports">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>运营报告
+  </div>
+  <div class="nav-item" data-page="rpt-settings">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>推送与设置
+  </div>
+
+  <div class="sl-bottom">
+    <div class="user-row">
+      <div class="user-avatar">王</div>
+      <div>
+        <div class="user-name">王老板</div>
+        <div class="user-role">管理员</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- GLOBAL FILTER -->
+<div id="gf">
+  <span class="gf-label">平台</span>
+  <select class="gf-select" id="gf-platform">
+    <option value="all">全部平台</option>
+    <option value="meituan">美团外卖</option>
+    <option value="taobao">淘宝闪购</option>
+  </select>
+  <div class="gf-div"></div>
+  <span class="gf-label">店铺</span>
+  <select class="gf-select" id="gf-store">
+    <option value="all">全部店铺</option>
+    <option value="s1">旺角港式茶餐厅</option>
+    <option value="s2">尖沙咀麻辣烫</option>
+  </select>
+  <div class="gf-div"></div>
+  <div class="time-tabs" id="time-tabs">
+    <div class="time-tab active" data-range="today">今日</div>
+    <div class="time-tab" data-range="7d">近7天</div>
+    <div class="time-tab" data-range="30d">近30天</div>
+    <div class="time-tab" data-range="custom">自定义</div>
+  </div>
+  <input type="date" class="gf-date" id="gf-date-from" title="开始日期">
+  <span style="display:none;font-size:11px;color:var(--t2);margin:0 2px" id="gf-date-sep">至</span>
+  <input type="date" class="gf-date" id="gf-date-to" title="结束日期">
+  <div class="gf-right">
+    <button class="btn-sm btn-outline" onclick="handleGlobalExport()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出
+    </button>
+    <button class="btn-sm btn-primary" onclick="showPage('reports')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>生成报告
+    </button>
+  </div>
+</div>
+
+<!-- ===== PAGE: 营收概览 ===== -->
+<div id="page-revenue" class="page active">
+  <div class="page-header">
+    <div class="page-title">营收概览</div>
+    <div class="page-sub">实时展示营业收入、毛利、净利及各层成本扣减结构 · 数据来源：美团外卖、淘宝闪购</div>
+  </div>
+  <div id="rev-alert" class="alert a-warn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span><strong>净利率预警：</strong>今日净利率 38.4%，低于您设定的健康线 40%。推广成本环比上涨 24%，建议及时调整美团竞价预算。</span>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">营业收入<span class="badge b-blue">今日</span></div>
+      <div class="kpi-val" id="rev-income">¥24,850</div>
+      <div class="kpi-sub"><span class="up">↑ +12.3%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">毛利额</div>
+      <div class="kpi-val" id="rev-gross" style="color:#4F6BED">¥14,462</div>
+      <div class="kpi-sub">毛利率 <strong>58.2%</strong></div>
+    </div>
+    <div class="kpi net">
+      <div class="kpi-lbl">实际净利 <span class="kpi-rate">净利率 38.4%</span></div>
+      <div class="kpi-val" id="rev-net">¥9,542</div>
+      <div class="kpi-sub"><span class="up" style="color:rgba(255,255,255,.8)">↑ +5.1%</span> <span style="color:rgba(255,255,255,.6)">较昨日</span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">总扣减成本</div>
+      <div class="kpi-val" style="color:#F59E0B">¥4,920</div>
+      <div class="kpi-sub">运营成本 ¥2,820 + 固定摊销 ¥2,100</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">今日订单数</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub">客单价 <strong>¥32.6</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">菜品成本合计</div>
+      <div class="kpi-val">¥10,388</div>
+      <div class="kpi-sub">成本占收入比 <strong>41.8%</strong></div>
+    </div>
+  </div>
+
+  <!-- Waterfall + Trend -->
+  <div class="grid-half" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">利润扣减瀑布图</div>
+      <div class="card-sub">从营业收入到最终净利的逐层扣减全链路可视化</div>
+      <div class="wf-rows" id="wf-rows">
+        <!-- JS rendered -->
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">近7日净利趋势</div>
+      <div class="card-sub">收入 vs 净利对比走势</div>
+      <div class="chart-box h240"><canvas id="c-rev-trend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Cost breakdown -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">运营成本构成</div>
+      <div class="card-sub">今日动态运营成本各子项占比</div>
+      <div class="chart-box h240"><canvas id="c-op-cost"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">固定成本构成</div>
+      <div class="card-sub">今日固定成本日摊各子项占比</div>
+      <div class="chart-box h240"><canvas id="c-fix-cost"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 用户分析 ===== -->
+<div id="page-users" class="page">
+  <div class="page-header">
+    <div class="page-title">用户分析</div>
+    <div class="page-sub">新老客户结构、客单价分布、配送距离分析及高频客户识别</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">总用户数（去重）</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub"><span class="up">↑ +28</span> 较上周</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">新客数</div>
+      <div class="kpi-val" style="color:#4F6BED">245</div>
+      <div class="kpi-sub">占比 <strong>32.1%</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">老客数</div>
+      <div class="kpi-val" style="color:#22C55E">518</div>
+      <div class="kpi-sub">复购率 <strong>67.9%</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平均客单价</div>
+      <div class="kpi-val">¥32.6</div>
+      <div class="kpi-sub"><span class="up">↑ +¥1.2</span> 较昨日</div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">新客 / 老客占比</div>
+      <div class="card-sub">近7日整体用户结构分布</div>
+      <div class="chart-box h260"><canvas id="c-new-old"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">新老客增长趋势</div>
+      <div class="card-sub">近7日每日新客与老客数量</div>
+      <div class="chart-box h260"><canvas id="c-user-trend"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">客单价分布</div>
+      <div class="card-sub">按金额区间统计订单分布</div>
+      <div class="chart-box h240"><canvas id="c-price-dist"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">配送距离分布</div>
+      <div class="card-sub">按配送半径统计订单分布</div>
+      <div class="chart-box h240"><canvas id="c-dist-dist"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">高频客户 TOP 10</div>
+    <div class="card-sub">按订单频次排名，可添加客户标签</div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="tbl-customers"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 订单分析 ===== -->
+<div id="page-orders" class="page">
+  <div class="page-header">
+    <div class="page-title">订单分析</div>
+    <div class="page-sub">订单量趋势、时段分布、异常指标监控</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">总订单数</div>
+      <div class="kpi-val">763</div>
+      <div class="kpi-sub"><span class="up">↑ +8.2%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">日均订单</div>
+      <div class="kpi-val">109</div>
+      <div class="kpi-sub">近7日均值</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">订单取消率</div>
+      <div class="kpi-val" style="color:#F59E0B">2.3%</div>
+      <div class="kpi-sub"><span class="flat">— 持平</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">退款率</div>
+      <div class="kpi-val">1.1%</div>
+      <div class="kpi-sub"><span class="down">↑ +0.3%</span> 较昨日</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平均出餐时长</div>
+      <div class="kpi-val">18 min</div>
+      <div class="kpi-sub">高峰期 <strong>26 min</strong></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">平台分佣成本</div>
+      <div class="kpi-val">¥1,738</div>
+      <div class="kpi-sub">占收入比 <strong>6.9%</strong></div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">近7日订单量趋势</div>
+    <div class="card-sub">按平台分组展示每日订单数</div>
+    <div class="chart-box h280"><canvas id="c-order-trend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">订单时段分布热力图</div>
+    <div class="card-sub">各小时段订单量分布（今日）</div>
+    <div class="chart-box h220"><canvas id="c-hourly"></canvas></div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 商品分析 ===== -->
+<div id="page-products" class="page">
+  <div class="page-header">
+    <div class="page-title">商品分析</div>
+    <div class="page-sub">菜品销量、毛利排行与销量-毛利交叉四象限分析</div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">菜品销量 TOP 10</div>
+      <div class="card-sub">按近7日销售份数排名</div>
+      <div class="chart-box h320"><canvas id="c-sales-rank"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">菜品毛利贡献 TOP 10</div>
+      <div class="card-sub">按近7日毛利额排名</div>
+      <div class="chart-box h320"><canvas id="c-margin-rank"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-half" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-title">销量 × 毛利率 四象限分析</div>
+      <div class="card-sub">横轴为销量，纵轴为毛利率 · 气泡大小代表收入贡献 · 虚线为各维度均值</div>
+      <div class="chart-box h340" style="position:relative"><canvas id="c-scatter"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#22C55E;display:inline-block"></span>⭐ 明星品 (高销+高利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#F59E0B;display:inline-block"></span>⚠️ 走量品 (高销+低利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#4F6BED;display:inline-block"></span>💡 潜力品 (低销+高利)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><span style="width:10px;height:10px;border-radius:50%;background:#EF4444;display:inline-block"></span>❌ 待淘汰 (低销+低利)</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">菜品毛利贡献度占比</div>
+      <div class="card-sub">各菜品占总毛利的比例</div>
+      <div class="chart-box h300"><canvas id="c-contrib"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 菜品管理 ===== -->
+<div id="page-dishes" class="page">
+  <div class="page-header">
+    <div class="page-title">菜品管理</div>
+    <div class="page-sub">维护自有菜品基础信息，支持批量上下架与调价</div>
+  </div>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" id="dish-search" type="text" placeholder="搜索菜品名称...">
+    </div>
+    <select class="filter-pill" id="dish-cat-filter">
+      <option value="">全部分类</option>
+      <option value="主食">主食</option>
+      <option value="小吃">小吃</option>
+      <option value="饮品">饮品</option>
+    </select>
+    <select class="filter-pill" id="dish-status-filter">
+      <option value="">全部状态</option>
+      <option value="上架">上架中</option>
+      <option value="下架">已下架</option>
+    </select>
+    <select class="filter-pill" id="dish-store-filter">
+      <option value="">全部店铺</option>
+    </select>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn-sm btn-outline" id="batch-off-btn" onclick="batchOffDishes()">批量下架</button>
+      <button class="btn-sm btn-outline" id="batch-price-btn" onclick="batchPriceDishes()">批量调价</button>
+      <button class="btn-sm btn-primary" onclick="openDishModal()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增菜品
+      </button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="dish-check-all" style="accent-color:var(--primary);cursor:pointer" onchange="toggleAllDishes(this)"></th>
+            <th>菜品名称</th><th>分类</th><th>成本价</th><th>售价</th><th>毛利率</th><th>状态</th><th>所属店铺</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="dish-tbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:11.5px;color:var(--t2)" id="dish-count-lbl">共 10 条记录</span>
+      <div class="pagination" id="dish-pagination"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 菜品导入关联 ===== -->
+<div id="page-import" class="page">
+  <div class="page-header">
+    <div class="page-title">菜品导入与关联</div>
+    <div class="page-sub">建立平台菜品名 → 自有标准菜品名的 KV 映射，自动关联订单数据</div>
+  </div>
+  <div class="ptabs" id="import-tabs">
+    <div class="ptab active" data-tab="mapping">菜品映射表 <span class="badge b-blue" style="margin-left:4px" id="mapping-count">5条</span></div>
+    <div class="ptab" data-tab="import-init">平台数据导入</div>
+    <div class="ptab" data-tab="status-overview">关联状态概览</div>
+  </div>
+
+  <!-- Tab 1: KV Mapping Table -->
+  <div id="tab-mapping" class="tcontent active">
+    <div class="toolbar">
+      <select class="gf-select" id="map-cat-filter" onchange="renderMapping()" style="width:120px">
+        <option value="all">全部分类</option><option value="主食">主食</option><option value="小吃">小吃</option><option value="饮品">饮品</option><option value="套餐">套餐</option><option value="甜品">甜品</option>
+      </select>
+      <select class="gf-select" id="map-plat-filter" onchange="renderMapping()" style="width:130px">
+        <option value="all">全部平台</option><option value="meituan">美团外卖</option><option value="taobao">淘宝闪购</option>
+      </select>
+      <div class="search-wrap" style="margin-left:8px"><svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="search-input" type="text" id="map-search" placeholder="搜索平台菜名或自有菜名..." oninput="renderMapping()"></div>
+      <button class="btn-sm btn-primary" style="margin-left:auto" onclick="openMappingModal()">+ 新增映射</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名 (K)</th><th style="width:30px"></th><th>自有标准菜品名 (V)</th><th>分类</th><th>最近匹配订单数</th><th>操作</th></tr></thead>
+          <tbody id="mapping-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Platform Data Import -->
+  <div id="tab-import-init" class="tcontent">
+    <div class="upload-zone" id="upload-zone">
+      <div class="upload-zone-icon">📂</div>
+      <div class="upload-zone-title">拖拽文件到此处，或点击选择文件</div>
+      <div class="upload-zone-sub">支持美团、淘宝闪购导出的 Excel / CSV 格式<br>字段需包含：菜品名、售价、销量（其余字段自动忽略）</div>
+      <input type="file" id="import-file-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileImport(event)">
+      <button class="btn-sm btn-primary" style="margin-top:12px;margin-left:auto;margin-right:auto" onclick="document.getElementById('import-file-input').click()">选择文件</button>
+    </div>
+    <div id="import-preview" style="display:none;margin-top:16px">
+      <div class="card-title" style="margin-bottom:10px">导入预览 — 平台菜品数据</div>
+      <div class="alert a-info" style="margin-bottom:12px">以下为文件解析结果，可逐条调整自有菜名和分类后，一键生成 KV 映射</div>
+      <div class="tbl-wrap" style="max-height:360px;overflow-y:auto">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名</th><th>平台售价</th><th>平台销量</th><th>建议自有菜名（可编辑）</th><th>分类</th></tr></thead>
+          <tbody id="import-preview-tbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <button class="btn-sm btn-primary" onclick="batchCreateMappings()">一键生成映射</button>
+        <span style="font-size:11px;color:var(--t2)">将预览表中的所有条目批量创建为 KV 映射</span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">近期导入记录</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>导入时间</th><th>来源平台</th><th>店铺</th><th>导入数量</th><th>已映射</th><th>待映射</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>2026-06-21 22:30</td><td><span class="badge b-blue">美团外卖</span></td><td>旺角港式茶餐厅</td><td>42</td><td>39</td><td><span style="color:var(--warning);font-weight:600">3</span></td><td><span class="badge b-yellow">部分完成</span></td></tr>
+            <tr><td>2026-06-20 23:10</td><td><span class="badge b-purple">淘宝闪购</span></td><td>尖沙咀麻辣烫</td><td>38</td><td>38</td><td>0</td><td><span class="badge b-green">已完成</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Status Overview -->
+  <div id="tab-status-overview" class="tcontent">
+    <div class="kpi-grid" style="margin-bottom:16px" id="mapping-stats"></div>
+    <div class="card" style="margin-bottom:14px" id="pending-mappings-section">
+      <div class="card-title">未建立映射的平台菜品</div>
+      <div class="card-sub">以下平台菜品名在近30天订单中出现但未建立 KV 映射，点击可快速添加</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>平台</th><th>平台菜品名</th><th>近30天出现次数</th><th>操作</th></tr></thead>
+          <tbody id="unmapped-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">最近映射日志</div>
+      <div class="tbl-wrap" style="margin-top:10px">
+        <table class="tbl">
+          <thead><tr><th>时间</th><th>操作</th><th>平台</th><th>平台菜品名</th><th>自有菜品名</th></tr></thead>
+          <tbody>
+            <tr><td>06-21 22:35</td><td><span class="badge b-green">新增映射</span></td><td>美团</td><td>招牌红烧肉（大份）</td><td>招牌红烧肉</td></tr>
+            <tr><td>06-21 22:32</td><td><span class="badge b-blue">编辑映射</span></td><td>淘宝闪购</td><td>珍珠奶茶冰镇款</td><td>冰镇奶茶</td></tr>
+            <tr><td>06-20 23:15</td><td><span class="badge b-green">新增映射</span></td><td>淘宝闪购</td><td>港式叉烧饭套餐</td><td>叉烧饭</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAPPING MODAL -->
+<div id="mapping-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('mapping-modal')">×</button>
+    <div class="modal-title" id="mapping-modal-title">新增菜品映射</div>
+    <div class="modal-sub">K=平台菜品名, V=自有标准菜品名, 用于订单数据自动关联</div>
+    <div class="form-grid">
+      <div class="fg">
+        <label>平台 *</label>
+        <select class="f-input f-select" id="mm-platform"><option value="meituan">美团外卖</option><option value="taobao">淘宝闪购</option></select>
+      </div>
+      <div class="fg">
+        <label>分类</label>
+        <select class="f-input f-select" id="mm-category"><option>主食</option><option>小吃</option><option>饮品</option><option>套餐</option><option>甜品</option></select>
+      </div>
+      <div class="fg span-2">
+        <label>平台菜品名 (K) *</label>
+        <input class="f-input" type="text" id="mm-platform-name" placeholder="如：招牌红烧肉（大份）">
+      </div>
+      <div class="fg span-2">
+        <label>自有标准菜品名 (V) *</label>
+        <input class="f-input" type="text" id="mm-own-name" placeholder="如：招牌红烧肉" list="mm-dish-suggestions">
+        <datalist id="mm-dish-suggestions"></datalist>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('mapping-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveMapping()">保存映射</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 每日成本录入 ===== -->
+<div id="page-costs" class="page">
+  <div class="page-header">
+    <div class="page-title">每日运营成本录入</div>
+    <div class="page-sub">录入当日动态运营成本，自动参与当日净利计算</div>
+  </div>
+  <div class="grid-half">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="card-title">今日运营成本录入</div>
+            <div class="card-sub" style="margin-bottom:0">2026-06-22 · 旺角港式茶餐厅</div>
+          </div>
+          <input type="date" class="f-input" value="2026-06-22" style="width:160px">
+        </div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>推广费用（元）</label>
+            <input type="number" class="f-input" id="c-promo" placeholder="¥ 0.00" value="1500">
+            <span style="font-size:10.5px;color:var(--t2)">美团/淘宝闪购竞价排名等</span>
+          </div>
+          <div class="fg">
+            <label>霸王餐补贴（元）</label>
+            <input type="number" class="f-input" id="c-bwc" placeholder="¥ 0.00" value="800">
+            <span style="font-size:10.5px;color:var(--t2)">平台霸王餐活动垫付</span>
+          </div>
+          <div class="fg">
+            <label>大额订单补贴（元）</label>
+            <input type="number" class="f-input" id="c-big" placeholder="¥ 0.00" value="520">
+            <span style="font-size:10.5px;color:var(--t2)">大额客损/优惠补贴</span>
+          </div>
+          <div class="fg">
+            <label>其他临时成本（元）</label>
+            <input type="number" class="f-input" id="c-other" placeholder="¥ 0.00" value="0">
+            <span style="font-size:10.5px;color:var(--t2)">可在备注中说明原因</span>
+          </div>
+          <div class="fg span-2">
+            <label>备注</label>
+            <textarea class="f-textarea" placeholder="说明今日特殊费用或备注..."></textarea>
+          </div>
+        </div>
+        <div id="cost-custom-rows"></div>
+        <button class="btn-sm btn-outline" style="margin-top:10px" onclick="addCustomCostRow()">+ 添加自定义成本项</button>
+        <div class="form-actions">
+          <button class="btn-sm btn-outline">清空</button>
+          <button class="btn-sm btn-primary" onclick="saveCosts()">保存今日录入</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">近7日成本录入记录</div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>日期</th><th>推广</th><th>霸王餐</th><th>大额补贴</th><th>合计</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>06-21</td><td>¥1,200</td><td>¥650</td><td>¥380</td><td style="font-weight:600">¥2,230</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+              <tr><td>06-20</td><td>¥1,800</td><td>¥900</td><td>¥420</td><td style="font-weight:600">¥3,120</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+              <tr><td>06-19</td><td>¥1,100</td><td>¥700</td><td>¥290</td><td style="font-weight:600">¥2,090</td><td><button class="btn-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- Right: live summary -->
+    <div>
+      <div class="card" style="position:sticky;top:70px">
+        <div class="card-title">今日净利实时预览</div>
+        <div class="card-sub">基于当前录入数据自动计算</div>
+        <div class="wf-rows" id="cost-summary-rows"></div>
+        <hr class="div">
+        <div style="font-size:11px;color:var(--t2);line-height:1.6">
+          <div>• 营业收入来源：平台自动同步</div>
+          <div>• 菜品成本来源：菜品成本价 × 当日销量</div>
+          <div>• 固定成本来源：已配置的日摊金额</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 固定成本设置 ===== -->
+<div id="page-fixed" class="page">
+  <div class="page-header">
+    <div class="page-title">固定成本设置</div>
+    <div class="page-sub">配置月度固定支出，系统按月天数自动日摊计入每日净利计算</div>
+  </div>
+  <div class="grid-half">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="card-title">固定成本配置</div>
+            <div class="card-sub" style="margin-bottom:0">旺角港式茶餐厅 · 每月配置生效</div>
+          </div>
+          <button class="btn-sm btn-primary" onclick="openFixedModal()">+ 添加固定成本项</button>
+        </div>
+        <div id="fixed-cost-list"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">今日固定成本日摊明细</div>
+        <div class="card-sub">2026-06-22 · 当月31天</div>
+        <div id="fixed-daily-list" style="margin-top:8px"></div>
+        <hr class="div">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+          <span style="color:var(--t2)">今日固定成本合计</span>
+          <strong style="font-size:15px">¥2,100</strong>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">本月固定成本概览</div>
+        <div class="card-sub">6月份累计固定支出</div>
+        <div class="chart-box h200" style="margin-top:8px"><canvas id="c-fixed-month"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: 运营报告 ===== -->
+<div id="page-reports" class="page">
+  <div class="page-header">
+    <div class="page-title">运营报告</div>
+    <div class="page-sub">AI 自动生成日报与周报，支持在线查看、PDF 导出与定时推送</div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div class="ptabs" style="margin-bottom:0;border:none" id="report-type-tabs">
+      <div class="ptab active" data-rtype="daily">日报</div>
+      <div class="ptab" data-rtype="weekly">周报</div>
+    </div>
+    <button class="btn-sm btn-primary" onclick="generateReport()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      立即生成今日报告
+    </button>
+  </div>
+  <div id="report-list"></div>
+</div>
+
+<!-- ===== PAGE: 报告设置 ===== -->
+<div id="page-rpt-settings" class="page">
+  <div class="page-header">
+    <div class="page-title">推送与报告设置</div>
+    <div class="page-sub">配置报告自动推送时间、推送渠道和报告包含的模块</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">推送时间配置</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">每日日报推送</div>
+          <div class="setting-desc">每天自动推送运营日报</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;align-items:center;gap:10px">
+          <input type="time" class="f-input" value="22:30" style="width:100px">
+          <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">每周周报推送</div>
+          <div class="setting-desc">每周一早上自动推送周报</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;align-items:center;gap:10px">
+          <input type="time" class="f-input" value="09:00" style="width:100px">
+          <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">异常实时预警</div>
+          <div class="setting-desc">净利率骤降或成本异常时立即推送</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+      <hr class="div">
+      <div class="card-title" style="margin-bottom:14px">推送渠道</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">微信工作群</div>
+          <div class="setting-desc">已配置 · 运营核心群</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">钉钉机器人</div>
+          <div class="setting-desc">未配置</div>
+        </div>
+        <div class="setting-ctrl" style="display:flex;gap:8px;align-items:center">
+          <button class="btn-sm btn-outline" style="height:26px;font-size:11px">配置</button>
+          <button class="toggle" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-lbl">邮件推送</div>
+          <div class="setting-desc">boss@wangjicha.com</div>
+        </div>
+        <div class="setting-ctrl"><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:14px">报告模板配置</div>
+        <div style="font-size:12px;color:var(--t2);margin-bottom:10px">选择日报包含的数据模块</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> 核心指标卡片（收入 / 毛利 / 净利）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> 成本明细（运营成本 + 固定成本日摊）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> TOP 菜品销量变动</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" checked style="accent-color:var(--primary)"> AI 运营分析与建议</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 用户结构（新老客占比）</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 订单时段分布热力图</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" style="accent-color:var(--primary)"> 异常预警详情</label>
+        </div>
+        <div class="form-actions" style="border-top:none;margin-top:12px;padding-top:0">
+          <button class="btn-sm btn-primary">保存模板配置</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">净利率预警阈值</div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>净利率低于此值时触发预警（%）</label>
+          <input type="number" class="f-input" value="40" style="width:100px">
+        </div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>推广成本占收入比超过此值预警（%）</label>
+          <input type="number" class="f-input" value="12" style="width:100px">
+        </div>
+        <div class="fg">
+          <label>退款率超过此值预警（%）</label>
+          <input type="number" class="f-input" value="3" style="width:100px">
+        </div>
+        <div class="form-actions" style="border-top:none;margin-top:12px;padding-top:0">
+          <button class="btn-sm btn-primary">保存阈值</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #main -->
+
+<!-- DISH MODAL -->
+<div id="dish-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('dish-modal')">×</button>
+    <div class="modal-title" id="dish-modal-title">新增菜品</div>
+    <div class="modal-sub">填写菜品基础信息，成本价变更将自动记录历史</div>
+    <div class="form-grid">
+      <div class="fg">
+        <label>菜品名称 *</label>
+        <input class="f-input" type="text" id="dm-name" placeholder="如：招牌红烧肉">
+      </div>
+      <div class="fg">
+        <label>分类 *</label>
+        <select class="f-input f-select" id="dm-cat">
+          <option>主食</option><option>小吃</option><option>饮品</option><option>套餐</option><option>甜品</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>成本价（元）*</label>
+        <input class="f-input" type="number" id="dm-cost" placeholder="0.00">
+      </div>
+      <div class="fg">
+        <label>售价（元）*</label>
+        <input class="f-input" type="number" id="dm-price" placeholder="0.00">
+      </div>
+      <div class="fg">
+        <label>所属店铺</label>
+        <select class="f-input f-select" id="dm-store">
+        </select>
+      </div>
+      <div class="fg">
+        <label>状态</label>
+        <select class="f-input f-select" id="dm-status"><option>上架</option><option>下架</option></select>
+      </div>
+      <div class="fg span-2">
+        <label>制作流程（可选）</label>
+        <textarea class="f-textarea" id="dm-proc" placeholder="简要描述制作步骤..."></textarea>
+      </div>
+      <div class="fg span-2">
+        <label>备注（可选）</label>
+        <input class="f-input" type="text" id="dm-note" placeholder="其他说明信息">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('dish-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveDish()">保存菜品</button>
+    </div>
+  </div>
+</div>
+
+<!-- FIXED COST MODAL -->
+<div id="fixed-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('fixed-modal')">×</button>
+    <div class="modal-title">添加固定成本项</div>
+    <div class="modal-sub">配置后系统自动按月天数日摊，无需每日重复录入</div>
+    <div class="form-grid">
+      <div class="fg span-2"><label>成本项名称 *</label><input class="f-input" id="fm-name" type="text" placeholder="如：门店租金"></div>
+      <div class="fg"><label>月金额（元）*</label><input class="f-input" id="fm-monthly" type="number" placeholder="0.00"></div>
+      <div class="fg"><label>分类</label><select class="f-input f-select" id="fm-category"><option value="rent">租金</option><option value="labor">人工</option><option value="utility">水电</option><option value="equipment">设备</option><option value="other">其他</option></select></div>
+      <div class="fg span-2"><label>备注</label><input class="f-input" type="text" placeholder="说明此成本项..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-outline" onclick="closeModal('fixed-modal')">取消</button>
+      <button class="btn-sm btn-primary" onclick="saveFixed()">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT DETAIL MODAL -->
+<div id="report-modal" class="modal-overlay">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <button class="modal-close" onclick="closeModal('report-modal')">×</button>
+    <div id="report-modal-content"></div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+window._supabaseCreateClient = createClient;
+</script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

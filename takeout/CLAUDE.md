@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-美团外卖自动出餐助手 — auto-click "cook complete" on Meituan (`waimaie.meituan.com`) and Taobao Flash/饿了么 (`melody.shop.ele.me`).
+美团外卖自动出餐助手 (takeout) — auto-click "cook complete" on Meituan (`waimaie.meituan.com`) and Taobao Flash/饿了么 (`melody.shop.ele.me`). 与 `ops/` (运营助手) 共享 Supabase 数据库。
 
 ## Architecture
 
@@ -38,21 +38,28 @@ Sync flow: `checkOrders()` → hash orders by (orderNo+status+riderStatus+cookRe
 ## Repo structure
 
 ```
-src/
-  pageAnalyzer.js              # DOM → structured data extractor
-  domExtractor.bookmarklet.js  # Meituan engine: extract, auto-cook, voice, cloud sync, UI panel
-  domExtractor.loader.js       # Bookmarklet entry: chain-loads pageAnalyzer + domExtractor
-  bookmarklet.loader.js        # Unified loader (auto-detect Meituan vs Taobao Flash)
-cdp/
-  cdp_poc.py                   # Python CDP PoC: find + click button, watch mode (verified)
-  chrome_launcher.sh           # Chrome launch helper for CDP debugging
-cdp-extension/
-  manifest.json                # chrome.debugger extension manifest
-  service-worker.js            # CDP engine: attach → find iframe → query → click → confirm
-  popup.html / popup.js        # Control panel UI
-docs/
-  index.html                   # GitHub Pages landing page with drag-to-bookmark install
-supabase_schema.sql            # Supabase DDL: orders, order_products, order_events + RLS
+takeout/
+  src/
+    pageAnalyzer.js              # DOM → structured data extractor
+    domExtractor.bookmarklet.js  # Meituan engine: extract, auto-cook, voice, cloud sync, UI panel
+    domExtractor.loader.js       # Bookmarklet entry: chain-loads pageAnalyzer + domExtractor
+    bookmarklet.loader.js        # Unified loader (auto-detect Meituan vs Taobao Flash)
+  cdp/
+    cdp_poc.py                   # Python CDP PoC: find + click button, watch mode (verified)
+    chrome_launcher.sh           # Chrome launch helper for CDP debugging
+  cdp-extension/
+    manifest.json                # chrome.debugger extension manifest
+    service-worker.js            # CDP engine: attach → find iframe → query → click → confirm
+    popup.html / popup.js        # Control panel UI
+  docs/
+    index.html                   # GitHub Pages landing page with drag-to-bookmark install
+  supabase_schema.sql            # Supabase DDL: orders, order_products, order_events + RLS
+ops/                  # 外卖运营助手（纯 HTML/CSS/JS + Chart.js）
+  index.html          # 主页
+  takeout-ops.html    # 外卖运营仪表盘
+  css/style.css       # 全局样式
+  js/                 # 前端 JS (config, api, app)
+  supabase/           # 运营相关 DDL + RLS 策略 + 种子数据
 ```
 
 ## Key technical details (Meituan)

@@ -14,13 +14,13 @@
  *              书签的 href 只放短小的 loader 代码,便于部署到 GitHub Pages。
  *
  * @usage 书签 javascript:
- *   javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/src/domExtractor.loader.js?t='+Date.now();document.body.appendChild(s);})()
+ *   javascript:(function(){var s=document.createElement('script');s.src='https://luyuhua.github.io/waimai/takeout/src/domExtractor.loader.js?t='+Date.now();document.body.appendChild(s);})()
  */
 
 (function () {
     'use strict';
 
-    var CDN_BASE = 'https://luyuhua.github.io/waimai/src/';
+    var CDN_BASE = 'https://luyuhua.github.io/waimai/takeout/src/';
     var cacheBust = '?t=' + Date.now();
 
     // 停止之前的实例（如果主脚本有 stop 接口）

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 300px;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: #fafafa;
+  }
+  .header {
+    background: #ff6b00;
+    color: #fff;
+    padding: 12px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #999;
+  }
+  .header .dot.watching { background: #4caf50; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .body { padding: 12px 16px; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .row:last-child { border-bottom: none; }
+  .label { color: #666; font-size: 13px; }
+  .value { font-weight: 500; font-size: 13px; }
+  .value.error { color: #d32f2f; }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-start { background: #4caf50; color: #fff; }
+  .btn-stop { background: #f44336; color: #fff; }
+  .btn-once { background: #2196f3; color: #fff; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .interval-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .interval-row input {
+    width: 70px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+  }
+  .divider { height: 1px; background: #eee; margin: 8px 0; }
+  .last-action {
+    font-size: 12px;
+    color: #999;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="dot" id="statusDot"></span>
+  <span>自动出餐助手</span>
+</div>
+<div class="body">
+  <div class="row">
+    <span class="label">状态</span>
+    <span class="value" id="statusText">加载中...</span>
+  </div>
+  <div class="row">
+    <span class="label">轮询间隔</span>
+    <div class="interval-row">
+      <input type="number" id="intervalInput" value="30" min="10" max="600" step="5">
+      <span style="font-size:13px;color:#999">秒</span>
+    </div>
+  </div>
+  <div class="row">
+    <span class="label">最后操作</span>
+    <span class="value" id="lastAction" style="font-size:12px">-</span>
+  </div>
+  <div id="errorRow" class="row" style="display:none">
+    <span class="label">错误</span>
+    <span class="value error" id="errorText"></span>
+  </div>
+
+  <button class="btn btn-start" id="btnStart">▶ 开始监控</button>
+  <button class="btn btn-stop" id="btnStop" style="display:none">■ 停止监控</button>
+  <div class="divider"></div>
+  <button class="btn btn-once" id="btnOnce">⚡ 立即检查一次</button>
+
+  <div class="last-action" id="hint">
+    请先登录 <b>melody.shop.ele.me</b> 商家后台
+  </div>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

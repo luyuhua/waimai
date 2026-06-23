@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "自动出餐助手",
+  "version": "0.1.0",
+  "description": "自动监控订单并点击出餐按钮（CDP 真实鼠标点击）",
+  "permissions": ["debugger", "tabs", "storage", "alarms"],
+  "host_permissions": ["https://melody.shop.ele.me/*"],
+  "background": { "service_worker": "service-worker.js" },
+  "action": {
+    "default_title": "自动出餐助手",
+    "default_popup": "popup.html"
+  }
+}
